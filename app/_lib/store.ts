@@ -151,6 +151,85 @@ export type HouseholdGroceryList = {
   items: HouseholdItem[];
 };
 
+export type InventoryStatus = "in_stock" | "low_stock" | "out_of_stock";
+
+export type InventoryRecord = {
+  ingredientId: string;
+  quantity: number;
+  threshold: number;
+  updatedAt: string;
+};
+
+export type AppMode = "catering" | "household";
+
+export type AiProviderPreference = "auto" | "openai" | "gemini";
+
+export type CurrencyCode = "USD" | "EUR" | "GBP" | "INR" | "AUD" | "CAD";
+
+export const CURRENCIES: { code: CurrencyCode; label: string; symbol: string }[] =
+  [
+    { code: "USD", label: "US Dollar", symbol: "$" },
+    { code: "EUR", label: "Euro", symbol: "€" },
+    { code: "GBP", label: "British Pound", symbol: "£" },
+    { code: "INR", label: "Indian Rupee", symbol: "₹" },
+    { code: "AUD", label: "Australian Dollar", symbol: "A$" },
+    { code: "CAD", label: "Canadian Dollar", symbol: "C$" },
+  ];
+
+export type Settings = {
+  profileName: string;
+  businessName: string;
+  householdName: string;
+  email: string;
+  defaultMode: AppMode;
+  defaultGuestCount: number;
+  currency: CurrencyCode;
+  aiProvider: AiProviderPreference;
+  showLowStockBanner: boolean;
+  onboarded: boolean;
+};
+
+// Empty defaults — the onboarding flow asks new users for these on first launch.
+// Existing users keep whatever they previously saved.
+export const DEFAULT_SETTINGS: Settings = {
+  profileName: "",
+  businessName: "",
+  householdName: "",
+  email: "",
+  defaultMode: "catering",
+  defaultGuestCount: 20,
+  currency: "USD",
+  aiProvider: "auto",
+  showLowStockBanner: true,
+  onboarded: false,
+};
+
+// True only when a brand-new user genuinely hasn't gone through the welcome flow.
+// Existing users with prior data (orders, household lists, or a saved profile
+// name) are treated as already-onboarded so we don't pester them.
+export function shouldShowOnboarding(settings: Settings): boolean {
+  if (settings.onboarded) return false;
+  if (settings.profileName.trim().length > 0) return false;
+  if (typeof window === "undefined") return false;
+  try {
+    const orders = window.localStorage.getItem(STORAGE_KEYS.orders);
+    if (orders) {
+      const parsed = JSON.parse(orders);
+      if (Array.isArray(parsed) && parsed.length > 0) return false;
+    }
+    const lists = window.localStorage.getItem(STORAGE_KEYS.householdLists);
+    if (lists) {
+      const parsed = JSON.parse(lists);
+      if (Array.isArray(parsed) && parsed.length > 0) return false;
+    }
+  } catch {
+    // ignore parse errors — fall through to showing onboarding
+  }
+  return true;
+}
+
+export const APP_VERSION = "1.0.0";
+
 export const STORAGE_KEYS = {
   ingredients: "gl.ingredients",
   menuItems: "gl.menuItems",
@@ -160,8 +239,24 @@ export const STORAGE_KEYS = {
   orders: "gl.orders",
   householdDraft: "gl.householdDraft",
   householdLists: "gl.householdLists",
+  inventory: "gl.inventory",
+  settings: "gl.settings",
+  mode: "gl.mode",
   seeded: "gl.seeded",
 } as const;
+
+export const COLLECTION_KEYS = [
+  STORAGE_KEYS.ingredients,
+  STORAGE_KEYS.menuItems,
+  STORAGE_KEYS.draftOrder,
+  STORAGE_KEYS.groceryLists,
+  STORAGE_KEYS.clients,
+  STORAGE_KEYS.orders,
+  STORAGE_KEYS.householdDraft,
+  STORAGE_KEYS.householdLists,
+  STORAGE_KEYS.inventory,
+  STORAGE_KEYS.settings,
+] as const;
 
 type SuggestionTemplate = Omit<HouseholdItem, "id" | "picked">;
 
@@ -244,6 +339,46 @@ export const SEED_INGREDIENTS: Ingredient[] = [
   { id: "ing-saffron", name: "Saffron", unit: "g", category: "Spices" },
   { id: "ing-cardamom", name: "Cardamom", unit: "g", category: "Spices" },
 ];
+
+export const SEED_INVENTORY: InventoryRecord[] = (() => {
+  const now = new Date().toISOString();
+  const seeds: Array<[string, number, number]> = [
+    ["ing-paneer", 800, 500],
+    ["ing-butter", 300, 250],
+    ["ing-cream", 200, 250],
+    ["ing-yogurt", 1200, 500],
+    ["ing-milk", 0, 1000],
+    ["ing-khoya", 150, 200],
+    ["ing-tomato", 4500, 2000],
+    ["ing-onion", 6000, 2000],
+    ["ing-ginger", 200, 250],
+    ["ing-garlic", 300, 200],
+    ["ing-mint", 80, 50],
+    ["ing-coriander", 60, 100],
+    ["ing-chicken", 2500, 2000],
+    ["ing-rice-basmati", 8000, 3000],
+    ["ing-flour-aata", 5000, 2000],
+    ["ing-flour-maida", 3000, 1500],
+    ["ing-dal-urad", 1500, 1000],
+    ["ing-rajma", 800, 500],
+    ["ing-sugar", 0, 1000],
+    ["ing-oil", 4500, 2000],
+    ["ing-salt", 2000, 500],
+    ["ing-yeast", 80, 100],
+    ["ing-cumin", 250, 100],
+    ["ing-garam-masala", 180, 100],
+    ["ing-turmeric", 350, 150],
+    ["ing-chili-red", 220, 150],
+    ["ing-saffron", 4, 5],
+    ["ing-cardamom", 90, 50],
+  ];
+  return seeds.map(([ingredientId, quantity, threshold]) => ({
+    ingredientId,
+    quantity,
+    threshold,
+    updatedAt: now,
+  }));
+})();
 
 export const SEED_MENU_ITEMS: MenuItem[] = [
   {
@@ -355,10 +490,17 @@ function writeJson<T>(key: string, value: T) {
 
 export function ensureSeed() {
   if (typeof window === "undefined") return;
-  if (window.localStorage.getItem(STORAGE_KEYS.seeded) === "1") return;
-  writeJson(STORAGE_KEYS.ingredients, SEED_INGREDIENTS);
-  writeJson(STORAGE_KEYS.menuItems, SEED_MENU_ITEMS);
-  window.localStorage.setItem(STORAGE_KEYS.seeded, "1");
+  if (window.localStorage.getItem(STORAGE_KEYS.seeded) !== "1") {
+    writeJson(STORAGE_KEYS.ingredients, SEED_INGREDIENTS);
+    writeJson(STORAGE_KEYS.menuItems, SEED_MENU_ITEMS);
+    writeJson(STORAGE_KEYS.inventory, SEED_INVENTORY);
+    window.localStorage.setItem(STORAGE_KEYS.seeded, "1");
+    return;
+  }
+  // Backfill inventory for users who seeded before inventory existed.
+  if (window.localStorage.getItem(STORAGE_KEYS.inventory) === null) {
+    writeJson(STORAGE_KEYS.inventory, SEED_INVENTORY);
+  }
 }
 
 export function readIngredients(): Ingredient[] {
@@ -430,6 +572,183 @@ export function readHouseholdLists(): HouseholdGroceryList[] {
 
 export function writeHouseholdLists(items: HouseholdGroceryList[]) {
   writeJson(STORAGE_KEYS.householdLists, items);
+}
+
+export function readInventory(): InventoryRecord[] {
+  return readJson<InventoryRecord[]>(STORAGE_KEYS.inventory, []);
+}
+
+export function writeInventory(items: InventoryRecord[]) {
+  writeJson(STORAGE_KEYS.inventory, items);
+}
+
+export function getInventoryStatus(record: InventoryRecord): InventoryStatus {
+  if (record.quantity <= 0) return "out_of_stock";
+  if (record.quantity <= record.threshold) return "low_stock";
+  return "in_stock";
+}
+
+export function readSettings(): Settings {
+  const raw = readJson<Partial<Settings>>(STORAGE_KEYS.settings, {});
+  return { ...DEFAULT_SETTINGS, ...raw };
+}
+
+export function writeSettings(settings: Settings) {
+  writeJson(STORAGE_KEYS.settings, settings);
+}
+
+// ---------------------------------------------------------------------------
+// Bulk data management (used by Settings → Data section).
+// ---------------------------------------------------------------------------
+
+export type ExportPayload = {
+  app: "grocerylist";
+  version: string;
+  exportedAt: string;
+  data: Record<string, unknown>;
+};
+
+export function exportAllData(): ExportPayload {
+  const data: Record<string, unknown> = {};
+  if (typeof window !== "undefined") {
+    for (const key of COLLECTION_KEYS) {
+      const raw = window.localStorage.getItem(key);
+      if (raw === null) continue;
+      try {
+        data[key] = JSON.parse(raw);
+      } catch {
+        data[key] = raw;
+      }
+    }
+  }
+  return {
+    app: "grocerylist",
+    version: APP_VERSION,
+    exportedAt: new Date().toISOString(),
+    data,
+  };
+}
+
+export function importAllData(payload: unknown): {
+  ok: boolean;
+  imported: number;
+  error?: string;
+} {
+  if (typeof window === "undefined") {
+    return { ok: false, imported: 0, error: "Not in a browser" };
+  }
+  if (!payload || typeof payload !== "object") {
+    return { ok: false, imported: 0, error: "Invalid backup file" };
+  }
+  const candidate = payload as { app?: unknown; data?: unknown };
+  if (candidate.app !== "grocerylist") {
+    return {
+      ok: false,
+      imported: 0,
+      error: "This file isn't a GroceryList backup",
+    };
+  }
+  if (!candidate.data || typeof candidate.data !== "object") {
+    return { ok: false, imported: 0, error: "Backup is missing data" };
+  }
+  const allowed = new Set<string>(COLLECTION_KEYS);
+  let imported = 0;
+  for (const [key, value] of Object.entries(
+    candidate.data as Record<string, unknown>,
+  )) {
+    if (!allowed.has(key)) continue;
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+      imported++;
+    } catch {
+      // skip individual key failures (e.g. quota exceeded)
+    }
+  }
+  window.dispatchEvent(new Event(STORE_UPDATE_EVENT));
+  return { ok: true, imported };
+}
+
+export function resetSeedData() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(STORAGE_KEYS.seeded);
+  writeJson(STORAGE_KEYS.ingredients, SEED_INGREDIENTS);
+  writeJson(STORAGE_KEYS.menuItems, SEED_MENU_ITEMS);
+  writeJson(STORAGE_KEYS.inventory, SEED_INVENTORY);
+  window.localStorage.setItem(STORAGE_KEYS.seeded, "1");
+  window.dispatchEvent(new Event(STORE_UPDATE_EVENT));
+}
+
+export function clearAllData() {
+  if (typeof window === "undefined") return;
+  for (const key of COLLECTION_KEYS) {
+    window.localStorage.removeItem(key);
+  }
+  window.localStorage.removeItem(STORAGE_KEYS.seeded);
+  window.localStorage.removeItem(STORAGE_KEYS.mode);
+  window.dispatchEvent(new Event(STORE_UPDATE_EVENT));
+}
+
+export type StorageBreakdown = {
+  key: string;
+  label: string;
+  bytes: number;
+  count: number;
+};
+
+const STORAGE_LABELS: Record<string, string> = {
+  [STORAGE_KEYS.ingredients]: "Ingredients",
+  [STORAGE_KEYS.menuItems]: "Menu items",
+  [STORAGE_KEYS.draftOrder]: "Draft order",
+  [STORAGE_KEYS.groceryLists]: "Catering grocery lists",
+  [STORAGE_KEYS.clients]: "Clients",
+  [STORAGE_KEYS.orders]: "Orders",
+  [STORAGE_KEYS.householdDraft]: "Household draft",
+  [STORAGE_KEYS.householdLists]: "Household lists",
+  [STORAGE_KEYS.inventory]: "Inventory",
+  [STORAGE_KEYS.settings]: "Settings",
+};
+
+export function readStorageBreakdown(): StorageBreakdown[] {
+  if (typeof window === "undefined") return [];
+  const out: StorageBreakdown[] = [];
+  for (const key of COLLECTION_KEYS) {
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) {
+      out.push({
+        key,
+        label: STORAGE_LABELS[key] ?? key,
+        bytes: 0,
+        count: 0,
+      });
+      continue;
+    }
+    let count = 0;
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) count = parsed.length;
+      else if (parsed && typeof parsed === "object") count = 1;
+    } catch {
+      count = 0;
+    }
+    out.push({
+      key,
+      label: STORAGE_LABELS[key] ?? key,
+      bytes: new Blob([raw]).size,
+      count,
+    });
+  }
+  return out;
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+export function getCurrencySymbol(code: CurrencyCode): string {
+  return CURRENCIES.find((c) => c.code === code)?.symbol ?? "$";
 }
 
 export function upsertClientByName(

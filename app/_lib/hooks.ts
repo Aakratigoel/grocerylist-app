@@ -3,15 +3,18 @@
 import { useEffect, useState } from "react";
 import {
   Client,
+  DEFAULT_SETTINGS,
   DraftOrder,
   EMPTY_DRAFT,
   GroceryList,
   HouseholdGroceryList,
   HouseholdItem,
   Ingredient,
+  InventoryRecord,
   MenuItem,
   Order,
   STORE_UPDATE_EVENT,
+  Settings,
   ensureSeed,
   readClients,
   readDraftOrder,
@@ -19,16 +22,20 @@ import {
   readHouseholdList,
   readHouseholdLists,
   readIngredients,
+  readInventory,
   readMenuItems,
   readOrders,
+  readSettings,
   writeClients,
   writeDraftOrder,
   writeGroceryLists,
   writeHouseholdList,
   writeHouseholdLists,
   writeIngredients,
+  writeInventory,
   writeMenuItems,
   writeOrders,
+  writeSettings,
 } from "./store";
 
 function useLocalCollection<T>(
@@ -99,5 +106,21 @@ export function useHouseholdLists() {
     readHouseholdLists,
     writeHouseholdLists,
     [],
+  );
+}
+
+export function useInventory() {
+  return useLocalCollection<InventoryRecord[]>(
+    readInventory,
+    writeInventory,
+    [],
+  );
+}
+
+export function useSettings() {
+  return useLocalCollection<Settings>(
+    readSettings,
+    writeSettings,
+    DEFAULT_SETTINGS,
   );
 }

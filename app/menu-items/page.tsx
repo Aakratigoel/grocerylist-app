@@ -11,7 +11,7 @@ import {
   SparklesIcon,
   TrashIcon,
 } from "../_components/icons";
-import { useIngredients, useMenuItems } from "../_lib/hooks";
+import { useIngredients, useMenuItems, useSettings } from "../_lib/hooks";
 import {
   Ingredient,
   MenuItem,
@@ -348,6 +348,7 @@ function MenuItemDialog({
     newIngredients: Ingredient[];
   }) => void;
 }) {
+  const [settings] = useSettings();
   const datalistId = useId();
   const isEdit = initial !== null;
 
@@ -415,6 +416,7 @@ function MenuItemDialog({
           name: trimmed,
           category,
           preferences: Array.from(preferences),
+          provider: settings.aiProvider,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as {

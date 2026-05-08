@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { OnboardingOverlay } from "./_components/onboarding-overlay";
 import { Sidebar } from "./_components/sidebar";
 
 const geistSans = Geist({
@@ -34,6 +35,7 @@ export default function RootLayout({
           <Sidebar />
           <div className="flex flex-1 flex-col">{children}</div>
         </div>
+        <OnboardingOverlay />
       </body>
     </html>
   );

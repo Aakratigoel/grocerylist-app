@@ -339,11 +339,42 @@ function enforcePreferences(
   return { ingredients: out, warnings };
 }
 
-function selectProvider(): Provider | null {
+function isProvider(value: unknown): value is Provider {
+  return value === "openai" || value === "gemini";
+}
+
+// Reject obvious placeholder values that ship in template .env files.
+function isRealKey(value: string | undefined): boolean {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (trimmed.length < 8) return false;
+  const upper = trimmed.toUpperCase();
+  if (upper.includes("PASTE_")) return false;
+  if (upper.includes("YOUR_")) return false;
+  if (upper.includes("XXXXXX")) return false;
+  return true;
+}
+
+function hasOpenAIKey(): boolean {
+  return isRealKey(process.env.OPENAI_API_KEY);
+}
+
+function hasGeminiKey(): boolean {
+  return isRealKey(process.env.GOOGLE_API_KEY);
+}
+
+function selectProvider(requested?: unknown): Provider | null {
+  // Prefer the per-request preference when its key is configured.
+  if (isProvider(requested)) {
+    if (requested === "openai" && hasOpenAIKey()) return "openai";
+    if (requested === "gemini" && hasGeminiKey()) return "gemini";
+    // Requested provider has no key — fall through to auto-detection.
+  }
   const explicit = process.env.AI_PROVIDER?.trim().toLowerCase();
-  if (explicit === "openai" || explicit === "gemini") return explicit;
-  if (process.env.OPENAI_API_KEY) return "openai";
-  if (process.env.GOOGLE_API_KEY) return "gemini";
+  if (explicit === "openai" && hasOpenAIKey()) return "openai";
+  if (explicit === "gemini" && hasGeminiKey()) return "gemini";
+  if (hasOpenAIKey()) return "openai";
+  if (hasGeminiKey()) return "gemini";
   return null;
 }
 
@@ -626,7 +657,24 @@ async function callGemini(
 }
 
 export async function POST(request: NextRequest) {
-  const provider = selectProvider();
+  let body: {
+    name?: unknown;
+    category?: unknown;
+    preferences?: unknown;
+    provider?: unknown;
+  };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const requestedProvider =
+    typeof body.provider === "string" && body.provider !== "auto"
+      ? body.provider
+      : undefined;
+
+  const provider = selectProvider(requestedProvider);
   if (!provider) {
     return Response.json(
       {
@@ -635,13 +683,6 @@ export async function POST(request: NextRequest) {
       },
       { status: 503 },
     );
-  }
-
-  let body: { name?: unknown; category?: unknown; preferences?: unknown };
-  try {
-    body = (await request.json()) as typeof body;
-  } catch {
-    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const name = typeof body.name === "string" ? body.name.trim() : "";

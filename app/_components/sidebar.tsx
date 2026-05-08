@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useSettings } from "../_lib/hooks";
 import {
   AnalyticsIcon,
   BasketIcon,
@@ -92,7 +93,6 @@ type ModeStyles = {
   brandIconText: string;
   activeBg: string;
   activeText: string;
-  subtitle: string;
 };
 
 const styles: Record<Mode, ModeStyles> = {
@@ -102,7 +102,6 @@ const styles: Record<Mode, ModeStyles> = {
     brandIconText: "text-green-700",
     activeBg: "bg-green-50",
     activeText: "text-green-700",
-    subtitle: "Tasty Bites Catering",
   },
   household: {
     brandIcon: BasketIcon,
@@ -110,13 +109,13 @@ const styles: Record<Mode, ModeStyles> = {
     brandIconText: "text-violet-600",
     activeBg: "bg-violet-50",
     activeText: "text-violet-700",
-    subtitle: "Personal account",
   },
 };
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [storedMode, setStoredMode] = useState<Mode>("catering");
+  const [settings] = useSettings();
+  const [storedMode, setStoredMode] = useState<Mode | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -127,7 +126,15 @@ export function Sidebar() {
   }, []);
 
   const inferred = inferMode(pathname);
-  const mode: Mode = inferred ?? storedMode;
+  const mode: Mode = inferred ?? storedMode ?? settings.defaultMode;
+  const subtitle =
+    mode === "household" ? settings.householdName : settings.businessName;
+  const initials = settings.profileName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 
   useEffect(() => {
     if (!inferred) return;
@@ -211,16 +218,21 @@ export function Sidebar() {
         </div>
       </nav>
 
-      <div className="m-3 flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2.5">
+      <Link
+        href="/settings"
+        className="m-3 flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+      >
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-700">
-          AS
+          {initials || "?"}
         </span>
         <div className="flex-1 leading-tight">
-          <p className="text-sm font-medium text-zinc-900">Aakrati Sharma</p>
-          <p className="text-xs text-zinc-500">{modeStyles.subtitle}</p>
+          <p className="text-sm font-medium text-zinc-900">
+            {settings.profileName || "Add your name"}
+          </p>
+          <p className="text-xs text-zinc-500">{subtitle}</p>
         </div>
         <ChevronDownIcon className="h-4 w-4 text-zinc-400" />
-      </div>
+      </Link>
     </aside>
   );
 }
