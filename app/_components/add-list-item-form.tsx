@@ -45,8 +45,10 @@ export function AddListItemForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
-    const qty = Number(quantity);
-    if (!trimmed || !qty || qty <= 0) return;
+    if (!trimmed) return;
+    const raw = Number(quantity.trim());
+    const qty =
+      !quantity.trim() || !Number.isFinite(raw) || raw < 0 ? 1 : raw;
 
     const existing = ingredients.find(
       (i) => i.name.toLowerCase() === trimmed.toLowerCase(),
@@ -118,8 +120,7 @@ export function AddListItemForm({
             step="0.01"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
-            placeholder="0"
-            required
+            placeholder="optional"
             className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
           />
         </label>
@@ -171,11 +172,15 @@ export function AddListItemForm({
         </button>
       </div>
 
-      {matchedExisting ? (
-        <p className="mt-2 text-[11px] text-zinc-500">
-          Matched to your ingredient master list — unit and category are locked.
-        </p>
-      ) : null}
+      <p className="mt-2 text-[11px] text-zinc-500">
+        Quantity is optional — blank defaults to 1.
+        {matchedExisting ? (
+          <span className="block pt-0.5">
+            Matched to your ingredient master list — unit and category are
+            locked.
+          </span>
+        ) : null}
+      </p>
     </form>
   );
 }

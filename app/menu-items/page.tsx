@@ -312,7 +312,9 @@ function MenuItemCard({
               <li key={ing.ingredientId} className="flex justify-between">
                 <span>{ingredient.name}</span>
                 <span className="font-medium text-zinc-900">
-                  {ing.quantityPerServing} {ingredient.unit}
+                  {ing.quantityPerServing > 0
+                    ? `${ing.quantityPerServing} ${ingredient.unit}`
+                    : "as needed"}
                 </span>
               </li>
             );
@@ -333,6 +335,15 @@ type IngredientRow = {
   quantity: string;
   unit: Unit;
 };
+
+/** Blank quantity defaults to 1 per serving so orders still scale sensibly. */
+function quantityPerServingFromRow(quantity: string): number {
+  const t = quantity.trim();
+  if (t === "") return 1;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) return 1;
+  return n;
+}
 
 function MenuItemDialog({
   ingredients,
@@ -449,9 +460,7 @@ function MenuItemDialog({
         return;
       }
       setRows((current) => {
-        const meaningful = current.filter(
-          (row) => row.name.trim() && row.quantity,
-        );
+        const meaningful = current.filter((row) => row.name.trim());
         const existingKeys = new Set(
           meaningful.map((row) => row.name.trim().toLowerCase()),
         );
@@ -514,9 +523,7 @@ function MenuItemDialog({
     e.preventDefault();
     if (!name.trim()) return;
 
-    const validRows = rows.filter(
-      (r) => r.name.trim() && r.quantity && Number(r.quantity) > 0,
-    );
+    const validRows = rows.filter((r) => r.name.trim());
     if (validRows.length === 0) return;
 
     const newIngredients: Ingredient[] = [];
@@ -548,7 +555,7 @@ function MenuItemDialog({
 
       menuIngredients.push({
         ingredientId,
-        quantityPerServing: Number(row.quantity),
+        quantityPerServing: quantityPerServingFromRow(row.quantity),
       });
     }
 
@@ -582,7 +589,7 @@ function MenuItemDialog({
             <p className="text-xs text-zinc-500">
               {isEdit
                 ? "Update the recipe — changes apply to future orders only."
-                : "Capture quantities per single serving — we scale by guest count."}
+                : "Quantities per serving are optional (blank defaults to 1); we scale by guest count."}
             </p>
           </div>
           <button
@@ -778,8 +785,8 @@ function MenuItemDialog({
                       onChange={(e) =>
                         updateRow(index, { quantity: e.target.value })
                       }
-                      placeholder="0"
-                      required
+                      placeholder="optional"
+                      aria-label="Quantity per serving (optional)"
                       className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
                     />
                     <select
@@ -814,9 +821,10 @@ function MenuItemDialog({
             </div>
 
             <p className="mt-3 text-[11px] text-zinc-500">
-              Type any ingredient name. New ingredients are added to your master
-              list automatically; existing ones lock the unit so quantities stay
-              consistent.
+              Type any ingredient name. Leave quantity blank to use{" "}
+              <span className="font-medium text-zinc-700">1</span> per serving.
+              New ingredients are added to your master list automatically;
+              existing ones lock the unit so quantities stay consistent.
             </p>
           </div>
         </div>
