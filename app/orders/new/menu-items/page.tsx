@@ -15,7 +15,9 @@ import {
   Ingredient,
   MenuItem,
   MenuItemCategory,
+  readDraftOrder,
 } from "../../../_lib/store";
+import { menuItemsCatalogHrefFromWizard } from "../_wizard";
 
 const MENU_CATEGORIES: MenuItemCategory[] = [
   "Starter",
@@ -64,12 +66,15 @@ export default function SelectMenuItemsStep() {
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    setDraft({ ...draft, selectedMenuItemIds: Array.from(next) });
+    setDraft({
+      ...readDraftOrder(),
+      selectedMenuItemIds: Array.from(next),
+    });
   };
 
   const handleContinue = () => {
     if (selectedIds.size === 0) return;
-    router.push("/orders/new/inventory");
+    router.push("/orders/new/review");
   };
 
   const totalIngredients = useMemo(() => {
@@ -96,7 +101,7 @@ export default function SelectMenuItemsStep() {
             </p>
           </div>
           <Link
-            href="/menu-items"
+            href={menuItemsCatalogHrefFromWizard("/orders/new/menu-items")}
             className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:inline-flex"
           >
             <PlusIcon className="h-4 w-4" />
@@ -150,11 +155,11 @@ export default function SelectMenuItemsStep() {
         <p className="mt-1 text-xs text-zinc-500">
           For{" "}
           <span className="font-medium text-zinc-700">
-            {draft.guestCount || 0} pax
+            {draft.guestCount || 0} servings
           </span>{" "}
           at{" "}
           <span className="font-medium text-zinc-700">
-            {draft.eventName || "your event"}
+            {draft.eventName || "your list"}
           </span>
           .
         </p>
@@ -284,7 +289,7 @@ function EmptyMenu() {
         order.
       </p>
       <Link
-        href="/menu-items"
+        href={menuItemsCatalogHrefFromWizard("/orders/new/menu-items")}
         className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-3.5 py-2 text-sm font-medium text-white hover:bg-green-800"
       >
         <PlusIcon className="h-4 w-4" />

@@ -2,22 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { useSettings } from "../_lib/hooks";
 import {
-  AnalyticsIcon,
   BasketIcon,
-  ChefHatIcon,
-  ChevronDownIcon,
   ClientsIcon,
   GroceryListsIcon,
   HomeIcon,
-  IngredientsIcon,
-  InventoryIcon,
   MenuItemsIcon,
   OrdersIcon,
-  PlusIcon,
-  SettingsIcon,
 } from "./icons";
 
 type IconComponent = (props: { className?: string }) => React.ReactNode;
@@ -28,141 +19,49 @@ type NavItem = {
   icon: IconComponent;
 };
 
-type Mode = "catering" | "household";
-
-const MODE_STORAGE_KEY = "gl.mode";
-
-const cateringNav: NavItem[] = [
+const navItems: NavItem[] = [
   { label: "Home", href: "/", icon: HomeIcon },
-  { label: "Orders", href: "/orders", icon: OrdersIcon },
+  { label: "History", href: "/orders", icon: OrdersIcon },
   { label: "Menu Items", href: "/menu-items", icon: MenuItemsIcon },
-  { label: "Ingredients", href: "/ingredients", icon: IngredientsIcon },
-  { label: "Inventory", href: "/inventory", icon: InventoryIcon },
   { label: "Grocery Lists", href: "/grocery-lists", icon: GroceryListsIcon },
   { label: "Clients", href: "/clients", icon: ClientsIcon },
-  { label: "Analytics", href: "/analytics", icon: AnalyticsIcon },
-  { label: "Settings", href: "/settings", icon: SettingsIcon },
 ];
-
-const householdNav: NavItem[] = [
-  { label: "Home", href: "/", icon: HomeIcon },
-  { label: "New List", href: "/grocery-lists/new", icon: PlusIcon },
-  { label: "My Lists", href: "/grocery-lists", icon: GroceryListsIcon },
-  { label: "Settings", href: "/settings", icon: SettingsIcon },
-];
-
-const HOUSEHOLD_PREFIXES = [
-  "/grocery-lists/new",
-  "/grocery-lists/household",
-];
-
-const CATERING_PREFIXES = [
-  "/orders",
-  "/menu-items",
-  "/ingredients",
-  "/inventory",
-  "/clients",
-];
-
-function inferMode(pathname: string): Mode | null {
-  if (
-    HOUSEHOLD_PREFIXES.some(
-      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-    )
-  ) {
-    return "household";
-  }
-  if (
-    CATERING_PREFIXES.some(
-      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-    )
-  ) {
-    return "catering";
-  }
-  return null;
-}
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-type ModeStyles = {
-  brandIcon: IconComponent;
-  brandIconBg: string;
-  brandIconText: string;
-  activeBg: string;
-  activeText: string;
-};
-
-const styles: Record<Mode, ModeStyles> = {
-  catering: {
-    brandIcon: ChefHatIcon,
-    brandIconBg: "bg-green-100",
-    brandIconText: "text-green-700",
-    activeBg: "bg-green-50",
-    activeText: "text-green-700",
-  },
-  household: {
-    brandIcon: BasketIcon,
-    brandIconBg: "bg-violet-100",
-    brandIconText: "text-violet-600",
-    activeBg: "bg-violet-50",
-    activeText: "text-violet-700",
-  },
-};
-
-export function Sidebar() {
+export function Sidebar({
+  mobileOpen = false,
+  onMobileClose,
+}: {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+} = {}) {
   const pathname = usePathname();
-  const [settings] = useSettings();
-  const [storedMode, setStoredMode] = useState<Mode | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(MODE_STORAGE_KEY);
-    if (saved === "catering" || saved === "household") {
-      setStoredMode(saved);
-    }
-  }, []);
-
-  const inferred = inferMode(pathname);
-  const mode: Mode = inferred ?? storedMode ?? settings.defaultMode;
-  const subtitle =
-    mode === "household" ? settings.householdName : settings.businessName;
-  const initials = settings.profileName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-
-  useEffect(() => {
-    if (!inferred) return;
-    if (inferred !== storedMode) {
-      setStoredMode(inferred);
-    }
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.setItem(MODE_STORAGE_KEY, inferred);
-      } catch {
-        // ignore
-      }
-    }
-  }, [inferred, storedMode]);
-
-  const navItems = mode === "household" ? householdNav : cateringNav;
-  const otherMode: Mode = mode === "household" ? "catering" : "household";
-  const switchHref = otherMode === "household" ? "/grocery-lists/new" : "/orders/new";
-  const modeStyles = styles[mode];
-  const BrandIcon = modeStyles.brandIcon;
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-zinc-200 bg-white">
-      <div className="flex items-center gap-3 px-6 pb-4 pt-7">
-        <span
-          className={`flex h-9 w-9 items-center justify-center rounded-lg ${modeStyles.brandIconBg} ${modeStyles.brandIconText}`}
+    <aside
+      id="app-sidebar"
+      className={`flex w-[min(100vw,16rem)] shrink-0 flex-col border-r border-zinc-200 bg-white transition-transform duration-200 ease-out md:relative md:z-auto md:translate-x-0 ${
+        mobileOpen ? "translate-x-0" : "-translate-x-full"
+      } fixed inset-y-0 left-0 z-50 md:static`}
+    >
+      <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3 md:hidden">
+        <span className="text-sm font-semibold text-zinc-900">Menu</span>
+        <button
+          type="button"
+          onClick={onMobileClose}
+          className="rounded-md px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
+          aria-label="Close menu"
         >
-          <BrandIcon className="h-5 w-5" />
+          Close
+        </button>
+      </div>
+      <div className="flex items-center gap-3 px-6 pb-4 pt-5 md:pt-7">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-700">
+          <BasketIcon className="h-5 w-5" />
         </span>
         <div className="leading-tight">
           <p className="text-lg font-semibold tracking-tight text-zinc-900">
@@ -172,7 +71,12 @@ export function Sidebar() {
         </div>
       </div>
 
-      <ModePill mode={mode} />
+      <div className="px-6">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700">
+          <BasketIcon className="h-3 w-3" />
+          For everyone
+        </span>
+      </div>
 
       <nav className="mt-3 flex-1 px-3">
         <ul className="space-y-1">
@@ -183,10 +87,11 @@ export function Sidebar() {
               <li key={item.label}>
                 <Link
                   href={item.href}
+                  onClick={() => onMobileClose?.()}
                   aria-current={active ? "page" : undefined}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                     active
-                      ? `${modeStyles.activeBg} font-medium ${modeStyles.activeText}`
+                      ? "bg-green-50 font-medium text-green-700"
                       : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
                   }`}
                 >
@@ -199,62 +104,11 @@ export function Sidebar() {
             );
           })}
         </ul>
-
-        <div className="mt-4 border-t border-zinc-100 pt-3">
-          <Link
-            href={switchHref}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-800"
-          >
-            <span className="flex h-5 w-5 items-center justify-center">
-              {otherMode === "household" ? (
-                <BasketIcon className="h-4 w-4" />
-              ) : (
-                <ChefHatIcon className="h-4 w-4" />
-              )}
-            </span>
-            Switch to{" "}
-            {otherMode === "household" ? "Household" : "Catering"} Mode
-          </Link>
-        </div>
       </nav>
 
-      <Link
-        href="/settings"
-        className="m-3 flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
-      >
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-700">
-          {initials || "?"}
-        </span>
-        <div className="flex-1 leading-tight">
-          <p className="text-sm font-medium text-zinc-900">
-            {settings.profileName || "Add your name"}
-          </p>
-          <p className="text-xs text-zinc-500">{subtitle}</p>
-        </div>
-        <ChevronDownIcon className="h-4 w-4 text-zinc-400" />
-      </Link>
+      <div className="m-3 rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-2.5 text-xs text-zinc-500">
+        Home cooks, meal prep, parties, or professional kitchens
+      </div>
     </aside>
-  );
-}
-
-function ModePill({ mode }: { mode: Mode }) {
-  const isHousehold = mode === "household";
-  return (
-    <div className="px-6">
-      <span
-        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-          isHousehold
-            ? "bg-violet-50 text-violet-700"
-            : "bg-green-50 text-green-700"
-        }`}
-      >
-        {isHousehold ? (
-          <BasketIcon className="h-3 w-3" />
-        ) : (
-          <ChefHatIcon className="h-3 w-3" />
-        )}
-        {isHousehold ? "Household" : "Catering"} Mode
-      </span>
-    </div>
   );
 }

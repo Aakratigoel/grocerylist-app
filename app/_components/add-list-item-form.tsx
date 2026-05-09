@@ -15,16 +15,33 @@ export function AddListItemForm({
   ingredients,
   onAdd,
   onCancel,
+  blockedIngredientIds,
+  blockedNamesLower,
 }: {
   ingredients: Ingredient[];
   onAdd: (line: GroceryListLine) => void;
   onCancel?: () => void;
+  /** IDs already present on this order’s list (e.g. from menu + extras). */
+  blockedIngredientIds?: ReadonlySet<string>;
+  blockedNamesLower?: ReadonlySet<string>;
 }) {
   const datalistId = useId();
   const [name, setName] = useState("");
   const [qtyAndUnit, setQtyAndUnit] = useState("");
   const [category, setCategory] = useState<IngredientCategory>("Other");
   const [matchedExisting, setMatchedExisting] = useState(false);
+
+  const trimmed = name.trim();
+  const catalogMatch = ingredients.find(
+    (i) => i.name.toLowerCase() === trimmed.toLowerCase(),
+  );
+  const blockedById =
+    catalogMatch !== undefined &&
+    Boolean(blockedIngredientIds?.has(catalogMatch.id));
+  const blockedByName =
+    trimmed.length > 0 &&
+    Boolean(blockedNamesLower?.has(trimmed.toLowerCase()));
+  const additionBlocked = blockedById || blockedByName;
 
   const handleNameChange = (value: string) => {
     setName(value);
@@ -42,12 +59,19 @@ export function AddListItemForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
 
     const existing = ingredients.find(
-      (i) => i.name.toLowerCase() === trimmed.toLowerCase(),
+      (i) => i.name.toLowerCase() === trimmedName.toLowerCase(),
     );
+
+    const idBlocked =
+      existing !== undefined && Boolean(blockedIngredientIds?.has(existing.id));
+    const nameBlocked = Boolean(
+      blockedNamesLower?.has(trimmedName.toLowerCase()),
+    );
+    if (idBlocked || nameBlocked) return;
 
     const fallbackUnit = existing?.unit?.trim() || "g";
     const { qty, unit: unitNorm } = parseQuantityAndUnit(
@@ -57,7 +81,7 @@ export function AddListItemForm({
 
     onAdd({
       ingredientId: existing?.id ?? generateId("custom"),
-      ingredientName: existing?.name ?? trimmed,
+      ingredientName: existing?.name ?? trimmedName,
       totalQuantity: qty,
       unit: unitNorm,
       category,
@@ -101,7 +125,12 @@ export function AddListItemForm({
             list={datalistId}
             placeholder="e.g. Saffron"
             required
-            className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
+            aria-invalid={additionBlocked}
+            className={`mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 ${
+              additionBlocked
+                ? "border-amber-300 focus:border-amber-400 focus:ring-amber-100"
+                : "border-zinc-200 focus:border-zinc-300 focus:ring-zinc-100"
+            }`}
           />
           <datalist id={datalistId}>
             {ingredients.map((i) => (
@@ -145,12 +174,20 @@ export function AddListItemForm({
 
         <button
           type="submit"
-          className="mt-1 inline-flex items-center justify-center gap-1.5 self-end rounded-lg bg-green-700 px-3.5 py-2 text-sm font-medium text-white hover:bg-green-800"
+          disabled={additionBlocked}
+          className="mt-1 inline-flex items-center justify-center gap-1.5 self-end rounded-lg bg-green-700 px-3.5 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:pointer-events-none disabled:opacity-50"
         >
           <PlusIcon className="h-4 w-4" />
           Add
         </button>
       </div>
+
+      {additionBlocked ? (
+        <p className="mt-2 text-[11px] font-medium text-amber-800" role="status">
+          This item is already on your list from the menu (or you already added
+          it). Remove the line first if you need to change the amount.
+        </p>
+      ) : null}
 
       <p className="mt-2 text-[11px] text-zinc-500">
         Amount is one field: number first, then unit (examples:{" "}

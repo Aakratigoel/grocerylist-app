@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { NEW_GROCERY_LIST_START_HREF } from "../../orders/new/_wizard";
+import { useEffect, useMemo, useState } from "react";
 import { AddListItemForm } from "../../_components/add-list-item-form";
 import {
   BellIcon,
@@ -23,6 +24,8 @@ import {
   GroceryListLine,
   IngredientCategory,
   formatQuantity,
+  mergeGroceryLinesDedup,
+  sortGroceryLines,
 } from "../../_lib/store";
 
 export default function GroceryListDetailPage() {
@@ -38,6 +41,20 @@ export default function GroceryListDetailPage() {
     [lists, params.id],
   );
 
+  const blockedIngredientIds = useMemo(() => {
+    if (!list) return new Set<string>();
+    return new Set(list.lines.map((l) => l.ingredientId));
+  }, [list]);
+
+  const blockedNamesLower = useMemo(() => {
+    if (!list) return new Set<string>();
+    return new Set(
+      list.lines
+        .map((l) => l.ingredientName.trim().toLowerCase())
+        .filter(Boolean),
+    );
+  }, [list]);
+
   const grouped = useMemo(() => {
     if (!list) return new Map<IngredientCategory, GroceryList["lines"]>();
     const map = new Map<IngredientCategory, GroceryList["lines"]>();
@@ -49,6 +66,42 @@ export default function GroceryListDetailPage() {
     return map;
   }, [list]);
 
+  useEffect(() => {
+    const current = lists.find((l) => l.id === params.id);
+    if (!current) return;
+    const normalized = sortGroceryLines(mergeGroceryLinesDedup(current.lines));
+    const fingerprint = (xs: GroceryListLine[]) =>
+      JSON.stringify(
+        xs.map((l) => ({
+          id: l.ingredientId,
+          q: l.totalQuantity,
+          n: l.ingredientName.trim().toLowerCase(),
+          u: String(l.unit).trim().toLowerCase(),
+        })),
+      );
+    if (fingerprint(normalized) === fingerprint(current.lines)) return;
+    setLists(
+      lists.map((l) =>
+        l.id === current.id ? { ...l, lines: normalized } : l,
+      ),
+    );
+  }, [lists, params.id, setLists]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const id = params.id;
+    if (!id || !lists.some((l) => l.id === id)) return;
+    try {
+      if (sessionStorage.getItem("gl-just-saved-list") !== id) return;
+      sessionStorage.removeItem("gl-just-saved-list");
+      setToast("List saved. Share or download from this screen anytime.");
+      const hide = window.setTimeout(() => setToast(null), 3400);
+      return () => window.clearTimeout(hide);
+    } catch {
+      /* private mode etc. */
+    }
+  }, [hydrated, params.id, lists]);
+
   const showToast = (message: string) => {
     setToast(message);
     setTimeout(() => setToast(null), 2200);
@@ -58,7 +111,7 @@ export default function GroceryListDetailPage() {
     return (
       <>
         <TopBar title="Grocery list" />
-        <main className="flex-1 px-10 pb-16 pt-8">
+        <main className="flex-1 px-4 pb-12 pt-6 sm:px-8 sm:pb-16 sm:pt-8 lg:px-10">
           <div className="mx-auto max-w-6xl text-sm text-zinc-500">
             Loading…
           </div>
@@ -71,8 +124,8 @@ export default function GroceryListDetailPage() {
     return (
       <>
         <TopBar title="Grocery list" />
-        <main className="flex-1 px-10 pb-16 pt-8">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-dashed border-zinc-300 bg-white p-12 text-center">
+        <main className="flex-1 px-4 pb-12 pt-6 sm:px-8 sm:pb-16 sm:pt-8 lg:px-10">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center sm:p-12">
             <h2 className="text-lg font-semibold text-zinc-900">
               Grocery list not found
             </h2>
@@ -140,11 +193,9 @@ export default function GroceryListDetailPage() {
   };
 
   const handleAddItem = (line: GroceryListLine) => {
-    const sorted = [...list.lines, line].sort((a, b) => {
-      if (a.category === b.category)
-        return a.ingredientName.localeCompare(b.ingredientName);
-      return a.category.localeCompare(b.category);
-    });
+    const sorted = sortGroceryLines(
+      mergeGroceryLinesDedup([...list.lines, line]),
+    );
     updateList({ ...list, lines: sorted });
     setShowAddForm(false);
     showToast(`Added ${line.ingredientName}`);
@@ -161,18 +212,18 @@ export default function GroceryListDetailPage() {
     <>
       <TopBar title={list.order.eventName || "Grocery list"} />
 
-      <main className="flex-1 px-10 pb-16 pt-8">
+      <main className="flex-1 px-4 pb-12 pt-6 sm:px-8 sm:pb-16 sm:pt-8 lg:px-10">
         <div className="mx-auto max-w-6xl">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <section className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:col-span-2">
+            <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-7 lg:col-span-2">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-semibold text-zinc-900">
-                    {list.order.eventName || "Catering order"}
+                    {list.order.eventName || "Grocery list"}
                   </h2>
                   <p className="mt-1 text-sm text-zinc-500">
                     {toBuy.length} items to buy ·{" "}
-                    {list.order.guestCount} pax · saved{" "}
+                    {list.order.guestCount} servings · saved{" "}
                     {formatRelativeDate(list.createdAt)}
                   </p>
                 </div>
@@ -202,6 +253,8 @@ export default function GroceryListDetailPage() {
                 <div className="mt-5">
                   <AddListItemForm
                     ingredients={ingredients}
+                    blockedIngredientIds={blockedIngredientIds}
+                    blockedNamesLower={blockedNamesLower}
                     onAdd={handleAddItem}
                     onCancel={() => setShowAddForm(false)}
                   />
@@ -211,7 +264,7 @@ export default function GroceryListDetailPage() {
               <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <DetailRow
                   icon={<UserIcon className="h-4 w-4" />}
-                  label="Client"
+                  label="For"
                   value={list.order.clientName}
                 />
                 <DetailRow
@@ -226,7 +279,7 @@ export default function GroceryListDetailPage() {
                 />
                 <DetailRow
                   icon={<MapPinIcon className="h-4 w-4" />}
-                  label="Venue"
+                  label="Location"
                   value={list.order.venue || "—"}
                 />
               </div>
@@ -335,6 +388,23 @@ export default function GroceryListDetailPage() {
                   <DownloadIcon className="h-4 w-4" />
                   Download CSV
                 </button>
+                <Link
+                  href={NEW_GROCERY_LIST_START_HREF}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-100"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  New grocery list
+                </Link>
+                <p className="text-[11px] leading-relaxed text-zinc-500">
+                  Your draft is cleared after save. Lists stay here under{" "}
+                  <Link
+                    href="/grocery-lists"
+                    className="font-medium text-green-700 hover:text-green-800"
+                  >
+                    Grocery Lists
+                  </Link>
+                  ; use Home when you&apos;re finished.
+                </p>
               </div>
             </aside>
           </div>
@@ -355,7 +425,7 @@ export default function GroceryListDetailPage() {
 
 function TopBar({ title }: { title: string }) {
   return (
-    <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-10 py-5">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 pl-14 sm:flex-nowrap sm:px-8 sm:py-5 sm:pl-8 lg:px-10">
       <nav className="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
         <Link
           href="/grocery-lists"
@@ -413,8 +483,8 @@ function DetailRow({
 function renderListAsText(list: GroceryList): string {
   const header = [
     `Grocery list — ${list.order.eventName || "Order"}`,
-    `Client: ${list.order.clientName} · ${list.order.guestCount} pax`,
-    list.order.eventDate ? `Event date: ${list.order.eventDate}` : null,
+    `For: ${list.order.clientName} · ${list.order.guestCount} servings`,
+    list.order.eventDate ? `Date: ${list.order.eventDate}` : null,
   ]
     .filter(Boolean)
     .join("\n");

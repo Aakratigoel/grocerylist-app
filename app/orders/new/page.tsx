@@ -7,7 +7,6 @@ import {
   CalendarIcon,
   CartIcon,
   ChevronDownIcon,
-  ClipboardCheckIcon,
   ClockIcon,
   LightbulbIcon,
   MapPinIcon,
@@ -16,6 +15,11 @@ import {
   UserIcon,
 } from "../../_components/icons";
 import { useDraftOrder } from "../../_lib/hooks";
+import { clearDraftOrder, readDraftOrder } from "../../_lib/store";
+
+function defaultShopDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const timeOptions = (() => {
   const slots: { value: string; label: string }[] = [];
@@ -40,23 +44,19 @@ const howItWorks = [
   {
     icon: ScaleIcon,
     title: "We Calculate Ingredients",
-    description: "Ingredients are auto-calculated based on guest count.",
-  },
-  {
-    icon: ClipboardCheckIcon,
-    title: "Check Inventory",
-    description: "Mark what's in stock and what to buy.",
+    description:
+      "Ingredients scale by how many people or servings you enter.",
   },
   {
     icon: CartIcon,
     title: "Get Grocery List",
-    description: "Review and export your grocery list.",
+    description: "Review totals and export your grocery list.",
   },
 ];
 
 export default function OrderDetailsStep() {
   const router = useRouter();
-  const [draft, setDraft] = useDraftOrder();
+  const [draft, setDraft, hydrated] = useDraftOrder();
 
   const [clientName, setClientName] = useState("");
   const [eventName, setEventName] = useState("");
@@ -65,26 +65,64 @@ export default function OrderDetailsStep() {
   const [eventTime, setEventTime] = useState("19:00");
   const [venue, setVenue] = useState("");
   const [notes, setNotes] = useState("");
+  const [formReady, setFormReady] = useState(false);
+
+  /** "Start a new grocery list" links use ?reset=1 — clear draft before syncing the form. */
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("reset") !== "1") return;
+    clearDraftOrder();
+    router.replace("/orders/new", { scroll: false });
+  }, [hydrated, router]);
+
+  /** Keep form in sync with persisted draft (e.g. after a list is saved and cleared). */
+  useEffect(() => {
+    if (!hydrated) return;
+    const d = readDraftOrder();
+    setClientName(d.clientName ?? "");
+    setEventName(d.eventName ?? "");
+    setEventDate(d.eventDate || defaultShopDate());
+    setGuestCount(d.guestCount > 0 ? String(d.guestCount) : "");
+    setEventTime(d.eventTime || "19:00");
+    setVenue(d.venue ?? "");
+    setNotes(d.notes ?? "");
+    setFormReady(true);
+  }, [hydrated, draft]);
 
   useEffect(() => {
-    setClientName(draft.clientName || "Rohit & Priya");
-    setEventName(draft.eventName || "Wedding at Taj Palace");
-    setEventDate(draft.eventDate || "2025-05-24");
-    setGuestCount(String(draft.guestCount || 100));
-    setEventTime(draft.eventTime || "19:00");
-    setVenue(draft.venue || "Taj Palace, New Delhi");
-    setNotes(draft.notes || "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!hydrated || !formReady) return;
+    setDraft({
+      ...readDraftOrder(),
+      clientName: clientName.trim(),
+      eventName: eventName.trim(),
+      eventDate,
+      guestCount: Math.max(0, Number(guestCount) || 0),
+      eventTime,
+      venue: venue.trim(),
+      notes: notes.trim(),
+    });
+  }, [
+    hydrated,
+    formReady,
+    clientName,
+    eventName,
+    eventDate,
+    guestCount,
+    eventTime,
+    venue,
+    notes,
+    setDraft,
+  ]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setDraft({
-      ...draft,
+      ...readDraftOrder(),
       clientName: clientName.trim(),
       eventName: eventName.trim(),
       eventDate,
-      guestCount: Number(guestCount) || 0,
+      guestCount: Math.max(1, Number(guestCount) || 1),
       eventTime,
       venue: venue.trim(),
       notes: notes.trim(),
@@ -103,34 +141,34 @@ export default function OrderDetailsStep() {
     <>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <section className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:col-span-2">
-          <h2 className="text-lg font-semibold text-zinc-900">Order Details</h2>
+          <h2 className="text-lg font-semibold text-zinc-900">List details</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Add the basic details for your catering order.
+            Name this shop and who it&apos;s for — fields are flexible for home
+            or work. Your progress saves automatically.
           </p>
 
           <form
             onSubmit={handleSubmit}
             className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2"
           >
-            <Field label="Client Name">
+            <Field label="For (household, client, or team)">
               <TextInput
                 value={clientName}
                 onChange={setClientName}
-                placeholder="e.g. Rohit & Priya"
-                required
+                placeholder="Enter name or label (optional)"
               />
             </Field>
 
-            <Field label="Event Name">
+            <Field label="List name">
               <TextInput
                 value={eventName}
                 onChange={setEventName}
-                placeholder="e.g. Wedding at Taj Palace"
+                placeholder="Enter a name for this list"
                 required
               />
             </Field>
 
-            <Field label="Event Date">
+            <Field label="Date">
               <InputWithLeadingIcon
                 icon={<CalendarIcon className="h-4 w-4" />}
               >
@@ -139,12 +177,17 @@ export default function OrderDetailsStep() {
                   value={eventDate}
                   onChange={(e) => setEventDate(e.target.value)}
                   required
+                  title="Pick a shop or event date"
+                  aria-label="Date — pick shop or event date"
                   className="w-full bg-transparent pl-9 pr-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0"
                 />
               </InputWithLeadingIcon>
+              <span className="mt-1 block text-[11px] text-zinc-400">
+                Native date picker — choose your shop or event date
+              </span>
             </Field>
 
-            <Field label="Guest Count">
+            <Field label="Servings or headcount">
               <div className="relative flex items-center rounded-lg border border-zinc-200 bg-white focus-within:border-zinc-300 focus-within:ring-2 focus-within:ring-zinc-100">
                 <input
                   type="number"
@@ -152,15 +195,16 @@ export default function OrderDetailsStep() {
                   onChange={(e) => setGuestCount(e.target.value)}
                   min={1}
                   required
+                  placeholder="Enter guests or servings"
                   className="w-full bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none"
                 />
                 <span className="pr-3.5 text-xs font-medium text-zinc-400">
-                  pax
+                  people
                 </span>
               </div>
             </Field>
 
-            <Field label="Delivery / Event Time (Optional)">
+            <Field label="Time (optional)">
               <div className="relative flex items-center rounded-lg border border-zinc-200 bg-white focus-within:border-zinc-300 focus-within:ring-2 focus-within:ring-zinc-100">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">
                   <ClockIcon className="h-4 w-4" />
@@ -168,6 +212,8 @@ export default function OrderDetailsStep() {
                 <select
                   value={eventTime}
                   onChange={(e) => setEventTime(e.target.value)}
+                  aria-label="Time (optional) — pick a time or leave as default"
+                  title="Pick a time (optional)"
                   className="w-full appearance-none bg-transparent pl-9 pr-9 py-2.5 text-sm text-zinc-900 focus:outline-none"
                 >
                   {timeOptions.map((option) => (
@@ -180,11 +226,11 @@ export default function OrderDetailsStep() {
               </div>
             </Field>
 
-            <Field label="Venue">
+            <Field label="Location (optional)">
               <TextInput
                 value={venue}
                 onChange={setVenue}
-                placeholder="e.g. Taj Palace, New Delhi"
+                placeholder="Enter location (optional)"
               />
             </Field>
 
@@ -193,7 +239,7 @@ export default function OrderDetailsStep() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
-                placeholder="Any special requests or notes..."
+                placeholder="Enter notes (optional)"
                 className="w-full resize-none rounded-lg border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
               />
             </Field>
@@ -203,7 +249,7 @@ export default function OrderDetailsStep() {
                 type="submit"
                 className="inline-flex items-center gap-2 rounded-xl bg-green-700 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
               >
-                Save &amp; Continue
+                Continue to menu
                 <ArrowRightIcon className="h-4 w-4" />
               </button>
             </div>
@@ -216,22 +262,22 @@ export default function OrderDetailsStep() {
           <ul className="mt-5 divide-y divide-zinc-100">
             <SummaryRow
               icon={<UserIcon className="h-4 w-4" />}
-              label="Guest Count"
-              value={`${summary.guestCount} pax`}
+              label="Servings / people"
+              value={`${summary.guestCount}`}
             />
             <SummaryRow
               icon={<CalendarIcon className="h-4 w-4" />}
-              label="Event Date"
+              label="Date"
               value={summary.eventDate}
             />
             <SummaryRow
               icon={<UserIcon className="h-4 w-4" />}
-              label="Client"
+              label="For"
               value={summary.clientName}
             />
             <SummaryRow
               icon={<MapPinIcon className="h-4 w-4" />}
-              label="Venue"
+              label="Location"
               value={summary.venue}
             />
           </ul>
@@ -242,8 +288,8 @@ export default function OrderDetailsStep() {
               Tip
             </div>
             <p className="mt-1.5 text-xs leading-5 text-zinc-500">
-              Accurate guest count helps us calculate the right quantities for
-              you.
+              This number scales every dish on your list — use servings for
+              meal prep or headcount for a crowd.
             </p>
           </div>
         </aside>

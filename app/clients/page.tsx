@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { NEW_GROCERY_LIST_START_HREF } from "../orders/new/_wizard";
 import {
   BellIcon,
   CalendarIcon,
@@ -34,7 +35,7 @@ export default function ClientsPage() {
     <>
       <TopBar />
 
-      <main className="flex-1 px-10 pb-16 pt-8">
+      <main className="flex-1 px-4 pb-12 pt-6 sm:px-8 sm:pb-16 sm:pt-8 lg:px-10">
         <div className="mx-auto max-w-6xl">
           {clientsHydrated && clients.length === 0 ? (
             <EmptyState />
@@ -57,7 +58,7 @@ export default function ClientsPage() {
 
 function TopBar() {
   return (
-    <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-10 py-5">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 pl-14 sm:flex-nowrap sm:px-8 sm:py-5 sm:pl-8 lg:px-10">
       <div>
         <h1 className="text-base font-semibold text-zinc-900">Clients</h1>
         <p className="text-xs text-zinc-500">
@@ -66,7 +67,7 @@ function TopBar() {
       </div>
       <div className="flex items-center gap-3">
         <Link
-          href="/orders/new"
+          href={NEW_GROCERY_LIST_START_HREF}
           className="inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-green-800"
         >
           <PlusIcon className="h-4 w-4" />
@@ -158,7 +159,7 @@ function ClientCard({
               href={`/grocery-lists/${lastOrder.groceryListId}`}
               className="mt-1 block font-medium text-zinc-900 hover:text-green-700"
             >
-              {lastOrder.eventName || "Catering order"}
+              {lastOrder.eventName || "Grocery list"}
             </Link>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
               <CalendarIcon className="h-3.5 w-3.5" />
@@ -187,7 +188,7 @@ function EmptyState() {
         order.
       </p>
       <Link
-        href="/orders/new"
+        href={NEW_GROCERY_LIST_START_HREF}
         className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
       >
         <PlusIcon className="h-4 w-4" />

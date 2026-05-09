@@ -11,12 +11,22 @@ import {
   MapPinIcon,
   UserIcon,
 } from "../../../_components/icons";
+import { StockToggle } from "../../../_components/stock-toggle";
 import { useDraftOrder, useIngredients, useMenuItems } from "../../../_lib/hooks";
-import { aggregateGroceryLines, formatQuantity } from "../../../_lib/store";
+import {
+  aggregateGroceryLines,
+  formatQuantity,
+  groceryLineDedupKey,
+  mergeGroceryLinesDedup,
+  nextInStockIdsAfterSettingDedupLine,
+  readDraftOrder,
+  sortGroceryLines,
+  type GroceryListLine,
+} from "../../../_lib/store";
 
 export default function ReviewStep() {
   const router = useRouter();
-  const [draft, , hydrated] = useDraftOrder();
+  const [draft, setDraft, hydrated] = useDraftOrder();
   const [menuItems] = useMenuItems();
   const [ingredients] = useIngredients();
 
@@ -32,28 +42,49 @@ export default function ReviewStep() {
     [menuItems, draft.selectedMenuItemIds],
   );
 
-  const lines = useMemo(() => {
-    const derived = aggregateGroceryLines(
+  const derivedLines = useMemo(
+    () =>
+      aggregateGroceryLines(
+        selectedMenuItems,
+        draft.guestCount,
+        ingredients,
+        new Set(draft.inStockIngredientIds),
+      ),
+    [
       selectedMenuItems,
       draft.guestCount,
       ingredients,
-      new Set(draft.inStockIngredientIds),
-    );
-    return [...derived, ...draft.extraItems].sort((a, b) => {
-      if (a.category === b.category)
-        return a.ingredientName.localeCompare(b.ingredientName);
-      return a.category.localeCompare(b.category);
-    });
-  }, [
-    selectedMenuItems,
-    draft.guestCount,
-    ingredients,
-    draft.inStockIngredientIds,
-    draft.extraItems,
-  ]);
+      draft.inStockIngredientIds,
+    ],
+  );
 
-  const inStockCount = lines.filter((l) => l.inStock).length;
-  const toBuyCount = lines.length - inStockCount;
+  const stockSources = useMemo(
+    () => [...derivedLines, ...draft.extraItems],
+    [derivedLines, draft.extraItems],
+  );
+
+  const lines = useMemo(
+    () => sortGroceryLines(mergeGroceryLinesDedup(stockSources)),
+    [stockSources],
+  );
+
+  const setIngredientStockFlag = (
+    displayLine: GroceryListLine,
+    nextInStock: boolean,
+  ) => {
+    const base = readDraftOrder();
+    setDraft({
+      ...base,
+      inStockIngredientIds: nextInStockIdsAfterSettingDedupLine(
+        base.inStockIngredientIds,
+        displayLine,
+        stockSources,
+        nextInStock,
+      ),
+    });
+  };
+
+  const toBuyCount = lines.filter((l) => !l.inStock).length;
   const eventTimeLabel = formatTime(draft.eventTime);
 
   return (
@@ -79,12 +110,12 @@ export default function ReviewStep() {
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <ReviewRow
             icon={<UserIcon className="h-4 w-4" />}
-            label="Client"
+            label="For"
             value={draft.clientName || "—"}
           />
           <ReviewRow
             icon={<UserIcon className="h-4 w-4" />}
-            label="Event"
+            label="List name"
             value={draft.eventName || "—"}
           />
           <ReviewRow
@@ -99,12 +130,12 @@ export default function ReviewStep() {
           />
           <ReviewRow
             icon={<UserIcon className="h-4 w-4" />}
-            label="Guests"
-            value={`${draft.guestCount} pax`}
+            label="Servings / people"
+            value={`${draft.guestCount}`}
           />
           <ReviewRow
             icon={<MapPinIcon className="h-4 w-4" />}
-            label="Venue"
+            label="Location"
             value={draft.venue || "—"}
           />
         </div>
@@ -148,36 +179,44 @@ export default function ReviewStep() {
         </div>
 
         <div className="mt-8">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-zinc-900">
               Ingredients ({lines.length})
             </h3>
-            <Link
-              href="/orders/new/inventory"
-              className="text-xs font-medium text-zinc-500 hover:text-zinc-900"
-            >
-              Edit inventory
-            </Link>
+            {draft.extraItems.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      "Remove all ingredients you added with “Add item”? Menu-calculated lines stay.",
+                    )
+                  )
+                    return;
+                  setDraft({ ...readDraftOrder(), extraItems: [] });
+                }}
+                className="text-xs font-medium text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-amber-950"
+              >
+                Clear manual additions ({draft.extraItems.length})
+              </button>
+            ) : null}
           </div>
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <SummaryPill
-              label="To buy"
-              value={toBuyCount}
-              tone="amber"
-            />
-            <SummaryPill
-              label="In stock"
-              value={inStockCount}
-              tone="green"
-            />
-          </div>
+          <p className="mt-2 text-[11px] text-zinc-500">
+            Quantities combine when the same ingredient appears across your
+            selected dishes (one row per ingredient). Mark each line{" "}
+            <span className="font-medium text-zinc-600">To buy</span> or{" "}
+            <span className="font-medium text-zinc-600">In stock</span>; the
+            grocery list only lists items to buy (
+            <span className="font-medium text-zinc-700">{toBuyCount}</span>{" "}
+            now).
+          </p>
           <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {lines.map((line) => (
               <li
-                key={line.ingredientId}
-                className="flex items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-sm"
+                key={groceryLineDedupKey(line)}
+                className="flex flex-col gap-2 rounded-lg border border-zinc-100 px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
-                <span className="flex items-center gap-2">
+                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                   <span
                     className={
                       line.inStock
@@ -193,15 +232,23 @@ export default function ReviewStep() {
                     </span>
                   ) : null}
                 </span>
-                <span
-                  className={
-                    line.inStock
-                      ? "text-zinc-400 line-through"
-                      : "font-medium text-zinc-900"
-                  }
-                >
-                  {formatQuantity(line.totalQuantity, line.unit)}
-                </span>
+                <div className="flex flex-wrap items-center justify-end gap-2 sm:justify-end">
+                  <StockToggle
+                    inStock={line.inStock}
+                    onPick={(next) =>
+                      setIngredientStockFlag(line, next)
+                    }
+                  />
+                  <span
+                    className={
+                      line.inStock
+                        ? "text-zinc-400 line-through tabular-nums"
+                        : "font-medium tabular-nums text-zinc-900"
+                    }
+                  >
+                    {formatQuantity(line.totalQuantity, line.unit)}
+                  </span>
+                </div>
               </li>
             ))}
           </ul>
@@ -229,7 +276,7 @@ export default function ReviewStep() {
 
         <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-5">
           <Link
-            href="/orders/new/inventory"
+            href="/orders/new/menu-items"
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-900"
           >
             <ChevronLeftIcon className="h-4 w-4" />
@@ -261,27 +308,6 @@ function ReviewRow({
         </p>
         <p className="text-sm font-medium text-zinc-900">{value}</p>
       </div>
-    </div>
-  );
-}
-
-function SummaryPill({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "green" | "amber";
-}) {
-  const styles =
-    tone === "green"
-      ? "bg-green-50 text-green-800"
-      : "bg-amber-50 text-amber-800";
-  return (
-    <div className={`flex items-center justify-between rounded-xl px-4 py-3 ${styles}`}>
-      <span className="text-sm font-medium">{label}</span>
-      <span className="text-sm font-semibold">{value}</span>
     </div>
   );
 }

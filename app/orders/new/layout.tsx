@@ -2,12 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  BasketIcon,
-  CheckIcon,
-  ChevronRightIcon,
-  HelpIcon,
-} from "../../_components/icons";
+import { CheckIcon, ChevronRightIcon, HelpIcon } from "../../_components/icons";
 import { WIZARD_STEPS, stepNumberFromPath } from "./_wizard";
 
 export default function NewOrderWizardLayout({
@@ -22,13 +17,13 @@ export default function NewOrderWizardLayout({
     <>
       <TopBar />
 
-      <div className="border-b border-zinc-200 bg-white px-10 pb-6 pt-7">
-        <div className="mx-auto max-w-6xl">
+      <div className="overflow-x-auto border-b border-zinc-200 bg-white px-4 pb-5 pt-6 pl-14 sm:px-8 sm:pb-6 sm:pt-7 sm:pl-8 lg:px-10">
+        <div className="mx-auto max-w-6xl min-w-[min(100%,42rem)]">
           <Stepper currentStep={currentStep} />
         </div>
       </div>
 
-      <main className="flex-1 px-10 pb-16 pt-8">
+      <main className="flex-1 px-4 pb-12 pt-6 sm:px-8 sm:pb-16 sm:pt-8 lg:px-10">
         <div className="mx-auto max-w-6xl">{children}</div>
       </main>
     </>
@@ -37,26 +32,19 @@ export default function NewOrderWizardLayout({
 
 function TopBar() {
   return (
-    <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-10 py-5">
-      <nav className="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 pl-14 sm:px-8 sm:py-5 sm:pl-8 lg:px-10">
+      <nav className="flex min-w-0 flex-1 items-center gap-2 text-sm" aria-label="Breadcrumb">
         <Link
           href="/orders"
           className="text-zinc-500 transition-colors hover:text-zinc-900"
         >
-          Orders
+          History
         </Link>
         <ChevronRightIcon className="h-4 w-4 text-zinc-300" />
-        <span className="font-semibold text-zinc-900">Create New Order</span>
+        <span className="font-semibold text-zinc-900">New grocery list</span>
       </nav>
 
-      <div className="flex items-center gap-3">
-        <Link
-          href="/grocery-lists/new?mode=household"
-          className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3.5 py-2 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100"
-        >
-          <BasketIcon className="h-4 w-4" />
-          Switch to Household Mode
-        </Link>
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
         <button
           type="button"
           aria-label="Help"
@@ -71,7 +59,7 @@ function TopBar() {
 
 function Stepper({ currentStep }: { currentStep: number }) {
   return (
-    <ol className="flex w-full items-center">
+    <ol className="flex w-full min-w-0 flex-wrap items-center gap-y-2 sm:flex-nowrap">
       {WIZARD_STEPS.map((step, index) => {
         const isLast = index === WIZARD_STEPS.length - 1;
         const status =
@@ -113,7 +101,10 @@ function Stepper({ currentStep }: { currentStep: number }) {
               </span>
             </div>
             {!isLast ? (
-              <span aria-hidden className="mx-4 h-px flex-1 bg-zinc-200" />
+              <span
+                aria-hidden
+                className="mx-2 hidden h-px flex-1 bg-zinc-200 sm:mx-4 sm:block"
+              />
             ) : null}
           </li>
         );

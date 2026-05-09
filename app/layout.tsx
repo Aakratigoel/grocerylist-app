@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { OnboardingOverlay } from "./_components/onboarding-overlay";
-import { Sidebar } from "./_components/sidebar";
+import { AppShell } from "./_components/app-shell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "GroceryList — Smart lists, every time.",
   description:
-    "Create catering and household grocery lists with auto-calculated ingredients, inventory checks, and easy sharing.",
+    "Build grocery lists from your recipes: scale ingredients by servings, mark what you need, share or download.",
 };
 
 export default function RootLayout({
@@ -31,11 +30,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-zinc-50 text-zinc-900">
-        <div className="flex min-h-screen w-full">
-          <Sidebar />
-          <div className="flex flex-1 flex-col">{children}</div>
-        </div>
-        <OnboardingOverlay />
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { NEW_GROCERY_LIST_START_HREF } from "./new/_wizard";
 import {
   BellIcon,
   CalendarIcon,
@@ -29,7 +30,7 @@ export default function OrdersPage() {
     <>
       <TopBar />
 
-      <main className="flex-1 px-10 pb-16 pt-8">
+      <main className="flex-1 px-4 pb-12 pt-6 sm:px-8 sm:pb-16 sm:pt-8 lg:px-10">
         <div className="mx-auto max-w-6xl">
           {hydrated && orders.length === 0 ? (
             <EmptyState />
@@ -38,10 +39,10 @@ export default function OrdersPage() {
               <table className="min-w-full divide-y divide-zinc-100">
                 <thead className="bg-zinc-50/60">
                   <tr className="text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                    <th className="px-6 py-3">Event</th>
-                    <th className="px-6 py-3">Client</th>
-                    <th className="px-6 py-3">Event date</th>
-                    <th className="px-6 py-3">Guests</th>
+                    <th className="px-6 py-3">List</th>
+                    <th className="px-6 py-3">For</th>
+                    <th className="px-6 py-3">Date</th>
+                    <th className="px-6 py-3">Servings</th>
                     <th className="px-6 py-3">Saved</th>
                     <th className="px-6 py-3">Status</th>
                   </tr>
@@ -62,20 +63,20 @@ export default function OrdersPage() {
 
 function TopBar() {
   return (
-    <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-10 py-5">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 pl-14 sm:flex-nowrap sm:px-8 sm:py-5 sm:pl-8 lg:px-10">
       <div>
-        <h1 className="text-base font-semibold text-zinc-900">Orders</h1>
+        <h1 className="text-base font-semibold text-zinc-900">Order history</h1>
         <p className="text-xs text-zinc-500">
-          Every catering order with its event date and grocery list.
+          Saved grocery lists and the details you entered for each run.
         </p>
       </div>
       <div className="flex items-center gap-3">
         <Link
-          href="/orders/new"
+          href={NEW_GROCERY_LIST_START_HREF}
           className="inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-green-800"
         >
           <PlusIcon className="h-4 w-4" />
-          New order
+          New grocery list
         </Link>
         <button
           type="button"
@@ -105,7 +106,7 @@ function OrderRow({ order }: { order: Order }) {
           className="block"
         >
           <p className="font-medium text-zinc-900 hover:text-green-700">
-            {order.eventName || "Untitled event"}
+            {order.eventName || "Untitled list"}
           </p>
           {order.venue ? (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-zinc-500">
@@ -132,7 +133,7 @@ function OrderRow({ order }: { order: Order }) {
           {formatDate(order.eventDate) || "—"}
         </span>
       </td>
-      <td className="px-6 py-4 text-zinc-700">{order.guestCount} pax</td>
+      <td className="px-6 py-4 text-zinc-700">{order.guestCount} servings</td>
       <td className="px-6 py-4 text-xs text-zinc-500">
         {formatRelativeDate(order.createdAt)}
       </td>
@@ -158,17 +159,17 @@ function EmptyState() {
         <OrdersIcon className="h-5 w-5" />
       </span>
       <h2 className="mt-4 text-lg font-semibold text-zinc-900">
-        No orders yet
+        No saved lists yet
       </h2>
       <p className="mt-1 text-sm text-zinc-500">
-        Orders show up here once you generate and save their grocery list.
+        Finished grocery lists appear here after you save them from the wizard.
       </p>
       <Link
-        href="/orders/new"
+        href={NEW_GROCERY_LIST_START_HREF}
         className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
       >
         <PlusIcon className="h-4 w-4" />
-        Create a new order
+        Start a grocery list
       </Link>
     </div>
   );

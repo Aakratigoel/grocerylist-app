@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Client,
   DEFAULT_SETTINGS,
   DraftOrder,
   EMPTY_DRAFT,
   GroceryList,
-  HouseholdGroceryList,
-  HouseholdItem,
   Ingredient,
   InventoryRecord,
   MenuItem,
@@ -19,8 +17,6 @@ import {
   readClients,
   readDraftOrder,
   readGroceryLists,
-  readHouseholdList,
-  readHouseholdLists,
   readIngredients,
   readInventory,
   readMenuItems,
@@ -29,8 +25,6 @@ import {
   writeClients,
   writeDraftOrder,
   writeGroceryLists,
-  writeHouseholdList,
-  writeHouseholdLists,
   writeIngredients,
   writeInventory,
   writeMenuItems,
@@ -61,10 +55,13 @@ function useLocalCollection<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const update = (next: T) => {
-    setValue(next);
-    writer(next);
-  };
+  const update = useCallback(
+    (next: T) => {
+      setValue(next);
+      writer(next);
+    },
+    [writer],
+  );
 
   return [value, update, hydrated];
 }
@@ -91,22 +88,6 @@ export function useClients() {
 
 export function useOrders() {
   return useLocalCollection<Order[]>(readOrders, writeOrders, []);
-}
-
-export function useHouseholdList() {
-  return useLocalCollection<HouseholdItem[]>(
-    readHouseholdList,
-    writeHouseholdList,
-    [],
-  );
-}
-
-export function useHouseholdLists() {
-  return useLocalCollection<HouseholdGroceryList[]>(
-    readHouseholdLists,
-    writeHouseholdLists,
-    [],
-  );
 }
 
 export function useInventory() {

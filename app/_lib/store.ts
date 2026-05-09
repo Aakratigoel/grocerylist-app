@@ -115,46 +115,6 @@ export type Order = {
   groceryListId: string;
 };
 
-export type HouseholdCategory =
-  | "Vegetables"
-  | "Fruits"
-  | "Dairy"
-  | "Staples"
-  | "Snacks"
-  | "Beverages"
-  | "Breakfast"
-  | "Personal Care"
-  | "Others";
-
-export const HOUSEHOLD_CATEGORIES: HouseholdCategory[] = [
-  "Vegetables",
-  "Fruits",
-  "Dairy",
-  "Staples",
-  "Snacks",
-  "Beverages",
-  "Breakfast",
-  "Personal Care",
-  "Others",
-];
-
-export type HouseholdItem = {
-  id: string;
-  name: string;
-  quantity: number;
-  unit: IngredientUnit;
-  category: HouseholdCategory;
-  picked: boolean;
-};
-
-export type HouseholdGroceryList = {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  items: HouseholdItem[];
-};
-
 export type InventoryStatus = "in_stock" | "low_stock" | "out_of_stock";
 
 export type InventoryRecord = {
@@ -163,8 +123,6 @@ export type InventoryRecord = {
   threshold: number;
   updatedAt: string;
 };
-
-export type AppMode = "catering" | "household";
 
 export type AiProviderPreference = "auto" | "openai" | "gemini";
 
@@ -183,9 +141,7 @@ export const CURRENCIES: { code: CurrencyCode; label: string; symbol: string }[]
 export type Settings = {
   profileName: string;
   businessName: string;
-  householdName: string;
   email: string;
-  defaultMode: AppMode;
   defaultGuestCount: number;
   currency: CurrencyCode;
   aiProvider: AiProviderPreference;
@@ -198,9 +154,7 @@ export type Settings = {
 export const DEFAULT_SETTINGS: Settings = {
   profileName: "",
   businessName: "",
-  householdName: "",
   email: "",
-  defaultMode: "catering",
   defaultGuestCount: 20,
   currency: "USD",
   aiProvider: "auto",
@@ -209,8 +163,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 // True only when a brand-new user genuinely hasn't gone through the welcome flow.
-// Existing users with prior data (orders, household lists, or a saved profile
-// name) are treated as already-onboarded so we don't pester them.
+// Existing users with prior data (orders or a saved profile name) skip onboarding.
 export function shouldShowOnboarding(settings: Settings): boolean {
   if (settings.onboarded) return false;
   if (settings.profileName.trim().length > 0) return false;
@@ -219,11 +172,6 @@ export function shouldShowOnboarding(settings: Settings): boolean {
     const orders = window.localStorage.getItem(STORAGE_KEYS.orders);
     if (orders) {
       const parsed = JSON.parse(orders);
-      if (Array.isArray(parsed) && parsed.length > 0) return false;
-    }
-    const lists = window.localStorage.getItem(STORAGE_KEYS.householdLists);
-    if (lists) {
-      const parsed = JSON.parse(lists);
       if (Array.isArray(parsed) && parsed.length > 0) return false;
     }
   } catch {
@@ -241,11 +189,8 @@ export const STORAGE_KEYS = {
   groceryLists: "gl.groceryLists",
   clients: "gl.clients",
   orders: "gl.orders",
-  householdDraft: "gl.householdDraft",
-  householdLists: "gl.householdLists",
   inventory: "gl.inventory",
   settings: "gl.settings",
-  mode: "gl.mode",
   seeded: "gl.seeded",
 } as const;
 
@@ -256,47 +201,9 @@ export const COLLECTION_KEYS = [
   STORAGE_KEYS.groceryLists,
   STORAGE_KEYS.clients,
   STORAGE_KEYS.orders,
-  STORAGE_KEYS.householdDraft,
-  STORAGE_KEYS.householdLists,
   STORAGE_KEYS.inventory,
   STORAGE_KEYS.settings,
 ] as const;
-
-type SuggestionTemplate = Omit<HouseholdItem, "id" | "picked">;
-
-export const HOUSEHOLD_SUGGESTIONS: Record<string, SuggestionTemplate[]> = {
-  Fruits: [
-    { name: "Apples", quantity: 6, unit: "pcs", category: "Fruits" },
-    { name: "Bananas", quantity: 1, unit: "kg", category: "Fruits" },
-    { name: "Oranges", quantity: 4, unit: "pcs", category: "Fruits" },
-  ],
-  Snacks: [
-    { name: "Chips", quantity: 1, unit: "pcs", category: "Snacks" },
-    { name: "Biscuits", quantity: 2, unit: "pcs", category: "Snacks" },
-    { name: "Nuts", quantity: 250, unit: "g", category: "Snacks" },
-  ],
-  Beverages: [
-    { name: "Tea", quantity: 250, unit: "g", category: "Beverages" },
-    { name: "Coffee", quantity: 200, unit: "g", category: "Beverages" },
-    { name: "Juice", quantity: 1, unit: "l", category: "Beverages" },
-  ],
-  Breakfast: [
-    { name: "Bread", quantity: 1, unit: "pcs", category: "Breakfast" },
-    { name: "Eggs", quantity: 12, unit: "pcs", category: "Breakfast" },
-    { name: "Oats", quantity: 500, unit: "g", category: "Breakfast" },
-  ],
-  "Personal Care": [
-    { name: "Soap", quantity: 2, unit: "pcs", category: "Personal Care" },
-    { name: "Shampoo", quantity: 1, unit: "pcs", category: "Personal Care" },
-    { name: "Toothpaste", quantity: 1, unit: "pcs", category: "Personal Care" },
-  ],
-};
-
-export const HOUSEHOLD_FREQUENTLY_TOGETHER: SuggestionTemplate[] = [
-  { name: "Tomatoes", quantity: 1, unit: "kg", category: "Vegetables" },
-  { name: "Onions", quantity: 1, unit: "kg", category: "Vegetables" },
-  { name: "Potatoes", quantity: 2, unit: "kg", category: "Vegetables" },
-];
 
 export const STORE_UPDATE_EVENT = "gl:store-update";
 
@@ -505,14 +412,85 @@ export function ensureSeed() {
   if (window.localStorage.getItem(STORAGE_KEYS.inventory) === null) {
     writeJson(STORAGE_KEYS.inventory, SEED_INVENTORY);
   }
+  syncIngredientsToMenuReferences();
+}
+
+/** First row wins — fixes duplicate ids from legacy saves / merge bugs. */
+export function dedupeIngredientsById(ingredients: Ingredient[]): Ingredient[] {
+  const seen = new Set<string>();
+  const out: Ingredient[] = [];
+  for (const ing of ingredients) {
+    if (seen.has(ing.id)) continue;
+    seen.add(ing.id);
+    out.push(ing);
+  }
+  return out;
+}
+
+/** Every ingredient id used on a menu item must exist in the master catalog. */
+export function collectReferencedIngredientIds(menuItems: MenuItem[]): Set<string> {
+  const ids = new Set<string>();
+  for (const m of menuItems) {
+    for (const row of m.ingredients) {
+      ids.add(row.ingredientId);
+    }
+  }
+  return ids;
+}
+
+function ingredientIdToPlaceholderName(id: string): string {
+  const slug = id.startsWith("ing-") ? id.slice(4) : id;
+  if (!slug) return id;
+  return slug
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+export function reconcileIngredientsWithMenuItems(
+  ingredients: Ingredient[],
+  menuItems: MenuItem[],
+): Ingredient[] {
+  const unique = dedupeIngredientsById(ingredients);
+  const byId = new Map(unique.map((i) => [i.id, i]));
+  const referenced = collectReferencedIngredientIds(menuItems);
+  const additions: Ingredient[] = [];
+  for (const id of referenced) {
+    if (!byId.has(id)) {
+      const created: Ingredient = {
+        id,
+        name: ingredientIdToPlaceholderName(id),
+        unit: "g",
+        category: "Other",
+      };
+      additions.push(created);
+      byId.set(id, created);
+    }
+  }
+  if (additions.length === 0) return unique;
+  return [...unique, ...additions];
+}
+
+function syncIngredientsToMenuReferences() {
+  const base = readJson<Ingredient[]>(STORAGE_KEYS.ingredients, SEED_INGREDIENTS);
+  const menuItems = readJson<MenuItem[]>(STORAGE_KEYS.menuItems, SEED_MENU_ITEMS);
+  const uniqueBase = dedupeIngredientsById(base);
+  const merged = reconcileIngredientsWithMenuItems(uniqueBase, menuItems);
+  const hadDuplicates = uniqueBase.length < base.length;
+  const hadMissingForMenu = merged.length > uniqueBase.length;
+  if (hadDuplicates || hadMissingForMenu) {
+    writeJson(STORAGE_KEYS.ingredients, merged);
+  }
 }
 
 export function readIngredients(): Ingredient[] {
-  return readJson<Ingredient[]>(STORAGE_KEYS.ingredients, SEED_INGREDIENTS);
+  const base = readJson<Ingredient[]>(STORAGE_KEYS.ingredients, SEED_INGREDIENTS);
+  const menuItems = readJson<MenuItem[]>(STORAGE_KEYS.menuItems, SEED_MENU_ITEMS);
+  return reconcileIngredientsWithMenuItems(base, menuItems);
 }
 
 export function writeIngredients(items: Ingredient[]) {
-  writeJson(STORAGE_KEYS.ingredients, items);
+  writeJson(STORAGE_KEYS.ingredients, dedupeIngredientsById(items));
 }
 
 export function readMenuItems(): MenuItem[] {
@@ -534,8 +512,7 @@ export function writeDraftOrder(draft: DraftOrder) {
 
 export function clearDraftOrder() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STORAGE_KEYS.draftOrder);
-  window.dispatchEvent(new Event(STORE_UPDATE_EVENT));
+  writeJson(STORAGE_KEYS.draftOrder, EMPTY_DRAFT);
 }
 
 export function readGroceryLists(): GroceryList[] {
@@ -562,22 +539,6 @@ export function writeOrders(items: Order[]) {
   writeJson(STORAGE_KEYS.orders, items);
 }
 
-export function readHouseholdList(): HouseholdItem[] {
-  return readJson<HouseholdItem[]>(STORAGE_KEYS.householdDraft, []);
-}
-
-export function writeHouseholdList(items: HouseholdItem[]) {
-  writeJson(STORAGE_KEYS.householdDraft, items);
-}
-
-export function readHouseholdLists(): HouseholdGroceryList[] {
-  return readJson<HouseholdGroceryList[]>(STORAGE_KEYS.householdLists, []);
-}
-
-export function writeHouseholdLists(items: HouseholdGroceryList[]) {
-  writeJson(STORAGE_KEYS.householdLists, items);
-}
-
 export function readInventory(): InventoryRecord[] {
   return readJson<InventoryRecord[]>(STORAGE_KEYS.inventory, []);
 }
@@ -593,8 +554,43 @@ export function getInventoryStatus(record: InventoryRecord): InventoryStatus {
 }
 
 export function readSettings(): Settings {
-  const raw = readJson<Partial<Settings>>(STORAGE_KEYS.settings, {});
-  return { ...DEFAULT_SETTINGS, ...raw };
+  const raw = readJson<Record<string, unknown>>(STORAGE_KEYS.settings, {});
+  const guestRaw = raw.defaultGuestCount;
+  const guestNum =
+    typeof guestRaw === "number" && Number.isFinite(guestRaw)
+      ? Math.round(guestRaw)
+      : DEFAULT_SETTINGS.defaultGuestCount;
+
+  return {
+    profileName:
+      typeof raw.profileName === "string"
+        ? raw.profileName
+        : DEFAULT_SETTINGS.profileName,
+    businessName:
+      typeof raw.businessName === "string"
+        ? raw.businessName
+        : DEFAULT_SETTINGS.businessName,
+    email:
+      typeof raw.email === "string" ? raw.email : DEFAULT_SETTINGS.email,
+    defaultGuestCount: Math.max(1, Math.min(1000, guestNum)),
+    currency: CURRENCIES.some((c) => c.code === raw.currency)
+      ? (raw.currency as CurrencyCode)
+      : DEFAULT_SETTINGS.currency,
+    aiProvider:
+      raw.aiProvider === "openai" ||
+      raw.aiProvider === "gemini" ||
+      raw.aiProvider === "auto"
+        ? (raw.aiProvider as AiProviderPreference)
+        : DEFAULT_SETTINGS.aiProvider,
+    showLowStockBanner:
+      typeof raw.showLowStockBanner === "boolean"
+        ? raw.showLowStockBanner
+        : DEFAULT_SETTINGS.showLowStockBanner,
+    onboarded:
+      typeof raw.onboarded === "boolean"
+        ? raw.onboarded
+        : DEFAULT_SETTINGS.onboarded,
+  };
 }
 
 export function writeSettings(settings: Settings) {
@@ -688,7 +684,46 @@ export function clearAllData() {
     window.localStorage.removeItem(key);
   }
   window.localStorage.removeItem(STORAGE_KEYS.seeded);
-  window.localStorage.removeItem(STORAGE_KEYS.mode);
+  window.dispatchEvent(new Event(STORE_UPDATE_EVENT));
+}
+
+/** Remove every `gl.*` key (full clear for this app on this origin). */
+export function purgeGlLocalStorage(): void {
+  if (typeof window === "undefined") return;
+  const toRemove: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (key?.startsWith("gl.")) toRemove.push(key);
+  }
+  for (const key of toRemove) {
+    window.localStorage.removeItem(key);
+  }
+  window.dispatchEvent(new Event(STORE_UPDATE_EVENT));
+}
+
+/**
+ * Remove all app data and write empty ingredients, menu, inventory, etc.
+ * Sets `seeded` so `ensureSeed` does not re-apply built-in demo seed data.
+ * Use for a true blank slate (also resets draft, orders, lists, clients, settings).
+ */
+export function wipeAllAppDataToEmpty() {
+  if (typeof window === "undefined") return;
+  for (const key of COLLECTION_KEYS) {
+    window.localStorage.removeItem(key);
+  }
+  window.localStorage.removeItem(STORAGE_KEYS.seeded);
+  window.localStorage.removeItem("gl.mode");
+
+  writeJson(STORAGE_KEYS.ingredients, [] as Ingredient[]);
+  writeJson(STORAGE_KEYS.menuItems, [] as MenuItem[]);
+  writeJson(STORAGE_KEYS.inventory, [] as InventoryRecord[]);
+  writeJson(STORAGE_KEYS.groceryLists, [] as GroceryList[]);
+  writeJson(STORAGE_KEYS.clients, [] as Client[]);
+  writeJson(STORAGE_KEYS.orders, [] as Order[]);
+  writeJson(STORAGE_KEYS.draftOrder, EMPTY_DRAFT);
+  writeJson(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
+
+  window.localStorage.setItem(STORAGE_KEYS.seeded, "1");
   window.dispatchEvent(new Event(STORE_UPDATE_EVENT));
 }
 
@@ -703,11 +738,9 @@ const STORAGE_LABELS: Record<string, string> = {
   [STORAGE_KEYS.ingredients]: "Ingredients",
   [STORAGE_KEYS.menuItems]: "Menu items",
   [STORAGE_KEYS.draftOrder]: "Draft order",
-  [STORAGE_KEYS.groceryLists]: "Catering grocery lists",
+  [STORAGE_KEYS.groceryLists]: "Grocery lists",
   [STORAGE_KEYS.clients]: "Clients",
   [STORAGE_KEYS.orders]: "Orders",
-  [STORAGE_KEYS.householdDraft]: "Household draft",
-  [STORAGE_KEYS.householdLists]: "Household lists",
   [STORAGE_KEYS.inventory]: "Inventory",
   [STORAGE_KEYS.settings]: "Settings",
 };
@@ -781,6 +814,101 @@ export function generateId(prefix = "id"): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Same-ish lines (different catalog IDs, etc.) collapse for shopping. */
+export function groceryLineDedupKey(line: Pick<GroceryListLine, "ingredientName" | "unit">): string {
+  return `${line.ingredientName.trim().toLowerCase()}\0${line.unit.trim().toLowerCase()}`;
+}
+
+/** Unmerged derived + extras: every ID that folds into `displayLine` after merge-by-name. */
+export function ingredientIdsMatchingGroceryDisplayLine(
+  displayLine: Pick<GroceryListLine, "ingredientName" | "unit">,
+  sources: readonly GroceryListLine[],
+): string[] {
+  const key = groceryLineDedupKey(displayLine);
+  const ids = new Set<string>();
+  for (const l of sources) {
+    if (groceryLineDedupKey(l) === key) ids.add(l.ingredientId);
+  }
+  return Array.from(ids);
+}
+
+export function nextInStockIdsAfterSettingDedupLine(
+  inStockIngredientIds: readonly string[],
+  displayLine: Pick<GroceryListLine, "ingredientName" | "unit">,
+  sources: readonly GroceryListLine[],
+  nextInStock: boolean,
+): string[] {
+  const matching = ingredientIdsMatchingGroceryDisplayLine(displayLine, sources);
+  const set = new Set(inStockIngredientIds);
+  for (const id of matching) {
+    if (nextInStock) set.add(id);
+    else set.delete(id);
+  }
+  return Array.from(set);
+}
+
+/** Merge quantities for lines that match name + unit (case-insensitive). */
+export function mergeGroceryLinesDedup(lines: GroceryListLine[]): GroceryListLine[] {
+  const map = new Map<
+    string,
+    {
+      ingredientId: string;
+      ingredientName: string;
+      totalQuantity: number;
+      unit: IngredientUnit;
+      category: IngredientCategory;
+      inStock: boolean;
+      custom: boolean;
+    }
+  >();
+
+  const prefersCatalogId = (a: string, b: string) =>
+    (a.startsWith("custom-") ? 1 : 0) - (b.startsWith("custom-") ? 1 : 0);
+
+  for (const line of lines) {
+    const key = groceryLineDedupKey(line);
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, {
+        ingredientId: line.ingredientId,
+        ingredientName: line.ingredientName.trim(),
+        totalQuantity: line.totalQuantity,
+        unit: line.unit,
+        category: line.category,
+        inStock: line.inStock,
+        custom: Boolean(line.custom),
+      });
+      continue;
+    }
+
+    prev.totalQuantity =
+      Math.round((prev.totalQuantity + line.totalQuantity) * 100) / 100;
+    prev.inStock = prev.inStock && line.inStock;
+    prev.custom = prev.custom || Boolean(line.custom);
+    if (prefersCatalogId(prev.ingredientId, line.ingredientId) > 0) {
+      prev.ingredientId = line.ingredientId;
+      if (!line.ingredientId.startsWith("custom-")) {
+        prev.ingredientName = line.ingredientName.trim();
+      }
+    }
+  }
+
+  return Array.from(map.values()).map((row) => {
+    const { custom, ...rest } = row;
+    const out: GroceryListLine = { ...rest };
+    if (custom) out.custom = true;
+    return out;
+  });
+}
+
+export function sortGroceryLines(lines: GroceryListLine[]): GroceryListLine[] {
+  return [...lines].sort((a, b) => {
+    if (a.category === b.category)
+      return a.ingredientName.localeCompare(b.ingredientName);
+    return a.category.localeCompare(b.category);
+  });
+}
+
 export function aggregateGroceryLines(
   selectedMenuItems: MenuItem[],
   guestCount: number,
@@ -809,10 +937,7 @@ export function aggregateGroceryLines(
     });
   }
 
-  return lines.sort((a, b) => {
-    if (a.category === b.category) return a.ingredientName.localeCompare(b.ingredientName);
-    return a.category.localeCompare(b.category);
-  });
+  return sortGroceryLines(mergeGroceryLinesDedup(lines));
 }
 
 export function formatQuantity(quantity: number, unit: IngredientUnit): string {

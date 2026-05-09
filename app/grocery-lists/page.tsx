@@ -2,82 +2,51 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { NEW_GROCERY_LIST_START_HREF } from "../orders/new/_wizard";
 import {
-  BasketIcon,
   BellIcon,
-  ChefHatIcon,
+  BasketIcon,
   GroceryListsIcon,
   HelpIcon,
   PlusIcon,
   TrashIcon,
 } from "../_components/icons";
-import { useGroceryLists, useHouseholdLists } from "../_lib/hooks";
-import { GroceryList, HouseholdGroceryList } from "../_lib/store";
-
-type Card =
-  | { kind: "catering"; data: GroceryList; sortDate: string }
-  | { kind: "household"; data: HouseholdGroceryList; sortDate: string };
+import { useGroceryLists } from "../_lib/hooks";
+import { GroceryList } from "../_lib/store";
 
 export default function GroceryListsPage() {
-  const [cateringLists, setCateringLists, cateringHydrated] = useGroceryLists();
-  const [householdLists, setHouseholdLists, householdHydrated] =
-    useHouseholdLists();
+  const [savedLists, setSavedLists, hydrated] = useGroceryLists();
 
-  const hydrated = cateringHydrated && householdHydrated;
+  const lists = useMemo(
+    () =>
+      [...savedLists].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    [savedLists],
+  );
 
-  const cards = useMemo<Card[]>(() => {
-    const result: Card[] = [
-      ...cateringLists.map((data) => ({
-        kind: "catering" as const,
-        data,
-        sortDate: data.createdAt,
-      })),
-      ...householdLists.map((data) => ({
-        kind: "household" as const,
-        data,
-        sortDate: data.updatedAt || data.createdAt,
-      })),
-    ];
-    result.sort(
-      (a, b) =>
-        new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime(),
-    );
-    return result;
-  }, [cateringLists, householdLists]);
-
-  const handleDeleteCatering = (id: string) => {
-    setCateringLists(cateringLists.filter((l) => l.id !== id));
-  };
-
-  const handleDeleteHousehold = (id: string) => {
-    setHouseholdLists(householdLists.filter((l) => l.id !== id));
+  const handleDelete = (id: string) => {
+    setSavedLists(savedLists.filter((l) => l.id !== id));
   };
 
   return (
     <>
       <TopBar />
 
-      <main className="flex-1 px-10 pb-16 pt-8">
+      <main className="flex-1 px-4 pb-12 pt-6 sm:px-8 sm:pb-16 sm:pt-8 lg:px-10">
         <div className="mx-auto max-w-6xl">
-          {hydrated && cards.length === 0 ? (
+          {hydrated && lists.length === 0 ? (
             <EmptyState />
           ) : (
             <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {cards.map((card) =>
-                card.kind === "catering" ? (
-                  <CateringCard
-                    key={card.data.id}
-                    list={card.data}
-                    onDelete={() => handleDeleteCatering(card.data.id)}
-                  />
-                ) : (
-                  <HouseholdCard
-                    key={card.data.id}
-                    list={card.data}
-                    onDelete={() => handleDeleteHousehold(card.data.id)}
-                  />
-                ),
-              )}
+              {lists.map((list) => (
+                <GroceryListCard
+                  key={list.id}
+                  list={list}
+                  onDelete={() => handleDelete(list.id)}
+                />
+              ))}
             </ul>
           )}
         </div>
@@ -86,7 +55,7 @@ export default function GroceryListsPage() {
   );
 }
 
-function CateringCard({
+function GroceryListCard({
   list,
   onDelete,
 }: {
@@ -104,15 +73,15 @@ function CateringCard({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700">
-                <ChefHatIcon className="h-3 w-3" />
-                Catering
+                <BasketIcon className="h-3 w-3" />
+                Saved list
               </span>
             </div>
             <h3 className="mt-1.5 truncate text-base font-semibold text-zinc-900">
-              {list.order.eventName || "Catering order"}
+              {list.order.eventName || "Grocery list"}
             </h3>
             <p className="mt-0.5 truncate text-xs text-zinc-500">
-              {list.order.clientName} · {list.order.guestCount} pax
+              {list.order.clientName} · {list.order.guestCount} servings
             </p>
           </div>
           <button
@@ -153,92 +122,18 @@ function CateringCard({
   );
 }
 
-function HouseholdCard({
-  list,
-  onDelete,
-}: {
-  list: HouseholdGroceryList;
-  onDelete: () => void;
-}) {
-  const total = list.items.length;
-  const picked = list.items.filter((it) => it.picked).length;
-  const remaining = total - picked;
-  return (
-    <li>
-      <Link
-        href={`/grocery-lists/household/${list.id}`}
-        className="block rounded-2xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:border-zinc-300 hover:shadow-md"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700">
-                <BasketIcon className="h-3 w-3" />
-                Household
-              </span>
-            </div>
-            <h3 className="mt-1.5 truncate text-base font-semibold text-zinc-900">
-              {list.name}
-            </h3>
-            <p className="mt-0.5 truncate text-xs text-zinc-500">
-              {total} item{total === 1 ? "" : "s"}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              onDelete();
-            }}
-            aria-label="Delete grocery list"
-            className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600"
-          >
-            <TrashIcon className="h-4 w-4" />
-          </button>
-        </div>
-
-        <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">
-            <dt className="text-[11px] font-medium uppercase tracking-wide">
-              Remaining
-            </dt>
-            <dd className="text-base font-semibold">{remaining}</dd>
-          </div>
-          <div className="rounded-lg bg-violet-50 px-3 py-2 text-violet-800">
-            <dt className="text-[11px] font-medium uppercase tracking-wide">
-              Picked
-            </dt>
-            <dd className="text-base font-semibold">{picked}</dd>
-          </div>
-        </dl>
-
-        <p className="mt-4 text-xs text-zinc-400">
-          Saved {formatRelativeDate(list.updatedAt || list.createdAt)}
-        </p>
-      </Link>
-    </li>
-  );
-}
-
 function TopBar() {
   return (
-    <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-10 py-5">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 pl-14 sm:flex-nowrap sm:px-8 sm:py-5 sm:pl-8 lg:px-10">
       <div>
         <h1 className="text-base font-semibold text-zinc-900">Grocery Lists</h1>
         <p className="text-xs text-zinc-500">
-          Saved catering and household lists.
+          Every list you finish and save appears here.
         </p>
       </div>
       <div className="flex items-center gap-3">
         <Link
-          href="/grocery-lists/new"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3.5 py-2 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100"
-        >
-          <BasketIcon className="h-4 w-4" />
-          New household list
-        </Link>
-        <Link
-          href="/orders/new"
+          href={NEW_GROCERY_LIST_START_HREF}
           className="inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-green-800"
         >
           <PlusIcon className="h-4 w-4" />
@@ -266,32 +161,23 @@ function TopBar() {
 function EmptyState() {
   return (
     <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-12 text-center">
-      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-50 text-violet-700">
+      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-50 text-green-700">
         <GroceryListsIcon className="h-5 w-5" />
       </span>
       <h2 className="mt-4 text-lg font-semibold text-zinc-900">
         No saved grocery lists yet
       </h2>
       <p className="mt-1 text-sm text-zinc-500">
-        Build a household list or create a catering order, then save a snapshot
-        to revisit anytime.
+        Start a list from Orders, pick your dishes, then save — it will show
+        up here.
       </p>
-      <div className="mt-5 flex flex-wrap justify-center gap-2">
-        <Link
-          href="/grocery-lists/new"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700 hover:bg-violet-100"
-        >
-          <BasketIcon className="h-4 w-4" />
-          New household list
-        </Link>
-        <Link
-          href="/orders/new"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
-        >
-          <PlusIcon className="h-4 w-4" />
-          New catering order
-        </Link>
-      </div>
+      <Link
+        href={NEW_GROCERY_LIST_START_HREF}
+        className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
+      >
+        <PlusIcon className="h-4 w-4" />
+        New grocery list
+      </Link>
     </div>
   );
 }

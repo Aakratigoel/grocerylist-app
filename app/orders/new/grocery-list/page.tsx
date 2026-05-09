@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AddListItemForm } from "../../../_components/add-list-item-form";
+import { StockToggle } from "../../../_components/stock-toggle";
 import {
   ChevronLeftIcon,
   DownloadIcon,
@@ -28,7 +29,12 @@ import {
   aggregateGroceryLines,
   clearDraftOrder,
   formatQuantity,
+  readDraftOrder,
   generateId,
+  groceryLineDedupKey,
+  mergeGroceryLinesDedup,
+  nextInStockIdsAfterSettingDedupLine,
+  sortGroceryLines,
   upsertClientByName,
 } from "../../../_lib/store";
 
@@ -66,13 +72,40 @@ export default function GroceryListStep() {
     [selectedMenuItems, draft.guestCount, ingredients, draft.inStockIngredientIds],
   );
 
-  const lines = useMemo(() => {
-    return [...derivedLines, ...draft.extraItems].sort((a, b) => {
-      if (a.category === b.category)
-        return a.ingredientName.localeCompare(b.ingredientName);
-      return a.category.localeCompare(b.category);
+  const stockSources = useMemo(
+    () => [...derivedLines, ...draft.extraItems],
+    [derivedLines, draft.extraItems],
+  );
+
+  const lines = useMemo(
+    () => sortGroceryLines(mergeGroceryLinesDedup(stockSources)),
+    [stockSources],
+  );
+
+  const setIngredientStockFlag = (
+    displayLine: GroceryListLine,
+    nextInStock: boolean,
+  ) => {
+    const base = readDraftOrder();
+    setDraft({
+      ...base,
+      inStockIngredientIds: nextInStockIdsAfterSettingDedupLine(
+        base.inStockIngredientIds,
+        displayLine,
+        stockSources,
+        nextInStock,
+      ),
     });
-  }, [derivedLines, draft.extraItems]);
+  };
+
+  const { blockedIngredientIds, blockedNamesLower } = useMemo(() => {
+    return {
+      blockedIngredientIds: new Set(lines.map((l) => l.ingredientId)),
+      blockedNamesLower: new Set(
+        lines.map((l) => l.ingredientName.trim().toLowerCase()).filter(Boolean),
+      ),
+    };
+  }, [lines]);
 
   const toBuy = useMemo(() => lines.filter((l) => !l.inStock), [lines]);
   const inStock = useMemo(() => lines.filter((l) => l.inStock), [lines]);
@@ -83,19 +116,25 @@ export default function GroceryListStep() {
   };
 
   const handleAddExtra = (line: GroceryListLine) => {
-    setDraft({ ...draft, extraItems: [...draft.extraItems, line] });
+    const base = readDraftOrder();
+    setDraft({ ...base, extraItems: [...base.extraItems, line] });
     setShowAddForm(false);
     showToast(`Added ${line.ingredientName}`);
   };
 
-  const handleRemoveExtra = (ingredientId: string) => {
+  const handleRemoveExtraContributions = (line: GroceryListLine) => {
+    const key = groceryLineDedupKey(line);
+    const base = readDraftOrder();
     setDraft({
-      ...draft,
-      extraItems: draft.extraItems.filter(
-        (l) => l.ingredientId !== ingredientId,
+      ...base,
+      extraItems: base.extraItems.filter(
+        (ex) => groceryLineDedupKey(ex) !== key,
       ),
     });
   };
+
+  const lineHasExtraContributions = (line: GroceryListLine) =>
+    draft.extraItems.some((ex) => groceryLineDedupKey(ex) === groceryLineDedupKey(line));
 
   const grouped = useMemo(() => {
     const map = new Map<IngredientCategory, typeof lines>();
@@ -141,6 +180,11 @@ export default function GroceryListStep() {
     if (nextClients !== clients) setClients(nextClients);
     setOrders([order, ...orders]);
     clearDraftOrder();
+    try {
+      sessionStorage.setItem("gl-just-saved-list", list.id);
+    } catch {
+      /* ignore quota / privacy mode */
+    }
     router.push(`/grocery-lists/${list.id}`);
   };
 
@@ -193,12 +237,34 @@ export default function GroceryListStep() {
               <p className="mt-1 text-sm text-zinc-500">
                 {toBuy.length} items to buy for{" "}
                 <span className="font-medium text-zinc-700">
-                  {draft.eventName || "your event"}
+                  {draft.eventName || "your list"}
                 </span>{" "}
-                · {draft.guestCount} pax
+                · {draft.guestCount} servings · use{" "}
+                <span className="font-medium text-zinc-600">To buy</span>
+                {" / "}
+                <span className="font-medium text-zinc-600">In stock</span>
+                {" below"}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {draft.extraItems.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Remove all ingredients you added with “Add item”? Menu-calculated lines stay.",
+                      )
+                    )
+                      return;
+                    setDraft({ ...readDraftOrder(), extraItems: [] });
+                    showToast("Manual additions cleared");
+                  }}
+                  className="text-xs font-medium text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-amber-950"
+                >
+                  Clear manual additions ({draft.extraItems.length})
+                </button>
+              ) : null}
               {!showAddForm ? (
                 <button
                   type="button"
@@ -219,6 +285,8 @@ export default function GroceryListStep() {
             <div className="mt-5">
               <AddListItemForm
                 ingredients={ingredients}
+                blockedIngredientIds={blockedIngredientIds}
+                blockedNamesLower={blockedNamesLower}
                 onAdd={handleAddExtra}
                 onCancel={() => setShowAddForm(false)}
               />
@@ -231,7 +299,7 @@ export default function GroceryListStep() {
                 Nothing to buy — you have everything in stock!
               </p>
               <p className="mt-1 text-xs text-green-700">
-                Save this order so you have a record of the inventory used.
+                Save this list to keep a copy you can reopen anytime.
               </p>
             </div>
           ) : (
@@ -249,11 +317,11 @@ export default function GroceryListStep() {
                   <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200">
                     {rows.map((line) => (
                       <li
-                        key={line.ingredientId}
-                        className="flex items-center justify-between px-4 py-3 text-sm"
+                        key={groceryLineDedupKey(line)}
+                        className="flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-2 w-2 rounded-full bg-amber-500" />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="flex h-2 w-2 shrink-0 rounded-full bg-amber-500" />
                           <span className="font-medium text-zinc-900">
                             {line.ingredientName}
                           </span>
@@ -263,15 +331,21 @@ export default function GroceryListStep() {
                             </span>
                           ) : null}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-zinc-900">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <StockToggle
+                            inStock={line.inStock}
+                            onPick={(next) =>
+                              setIngredientStockFlag(line, next)
+                            }
+                          />
+                          <span className="font-semibold tabular-nums text-zinc-900">
                             {formatQuantity(line.totalQuantity, line.unit)}
                           </span>
-                          {line.custom ? (
+                          {line.custom && lineHasExtraContributions(line) ? (
                             <button
                               type="button"
                               onClick={() =>
-                                handleRemoveExtra(line.ingredientId)
+                                handleRemoveExtraContributions(line)
                               }
                               aria-label={`Remove ${line.ingredientName}`}
                               className="rounded-md p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600"
@@ -296,11 +370,21 @@ export default function GroceryListStep() {
               <ul className="divide-y divide-zinc-100 px-4 pb-3 text-sm text-zinc-500">
                 {inStock.map((line) => (
                   <li
-                    key={line.ingredientId}
-                    className="flex justify-between py-2"
+                    key={groceryLineDedupKey(line)}
+                    className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                   >
-                    <span>{line.ingredientName}</span>
-                    <span>{formatQuantity(line.totalQuantity, line.unit)}</span>
+                    <span className="text-zinc-600">{line.ingredientName}</span>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <StockToggle
+                        inStock={line.inStock}
+                        onPick={(next) =>
+                          setIngredientStockFlag(line, next)
+                        }
+                      />
+                      <span className="tabular-nums text-zinc-500">
+                        {formatQuantity(line.totalQuantity, line.unit)}
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -370,8 +454,8 @@ export default function GroceryListStep() {
 function renderListAsText(list: GroceryList): string {
   const header = [
     `Grocery list — ${list.order.eventName || "Order"}`,
-    `Client: ${list.order.clientName} · ${list.order.guestCount} pax`,
-    list.order.eventDate ? `Event date: ${list.order.eventDate}` : null,
+    `For: ${list.order.clientName} · ${list.order.guestCount} servings`,
+    list.order.eventDate ? `Date: ${list.order.eventDate}` : null,
   ]
     .filter(Boolean)
     .join("\n");
