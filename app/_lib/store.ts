@@ -1,3 +1,4 @@
+/** Built-in units for suggestions and presets; ingredients may use any custom string. */
 export type Unit = "g" | "kg" | "ml" | "l" | "pcs" | "tsp" | "tbsp" | "cup";
 
 export const UNITS: Unit[] = [
@@ -10,6 +11,9 @@ export const UNITS: Unit[] = [
   "tbsp",
   "cup",
 ];
+
+/** Free-text unit on ingredients and lists (e.g. g, pcs, bunch, pinch). */
+export type IngredientUnit = string;
 
 export type IngredientCategory =
   | "Produce"
@@ -33,7 +37,7 @@ export const INGREDIENT_CATEGORIES: IngredientCategory[] = [
 export type Ingredient = {
   id: string;
   name: string;
-  unit: Unit;
+  unit: IngredientUnit;
   category: IngredientCategory;
 };
 
@@ -75,7 +79,7 @@ export type GroceryListLine = {
   ingredientId: string;
   ingredientName: string;
   totalQuantity: number;
-  unit: Unit;
+  unit: IngredientUnit;
   category: IngredientCategory;
   inStock: boolean;
   custom?: boolean;
@@ -138,7 +142,7 @@ export type HouseholdItem = {
   id: string;
   name: string;
   quantity: number;
-  unit: Unit;
+  unit: IngredientUnit;
   category: HouseholdCategory;
   picked: boolean;
 };
@@ -811,13 +815,15 @@ export function aggregateGroceryLines(
   });
 }
 
-export function formatQuantity(quantity: number, unit: Unit): string {
-  if (unit === "g" && quantity >= 1000) {
+export function formatQuantity(quantity: number, unit: IngredientUnit): string {
+  const u = unit.trim().toLowerCase();
+  if (u === "g" && quantity >= 1000) {
     return `${(quantity / 1000).toFixed(2).replace(/\.?0+$/, "")} kg`;
   }
-  if (unit === "ml" && quantity >= 1000) {
+  if (u === "ml" && quantity >= 1000) {
     return `${(quantity / 1000).toFixed(2).replace(/\.?0+$/, "")} l`;
   }
   const rounded = Math.round(quantity * 100) / 100;
-  return `${rounded} ${unit}`;
+  const label = unit.trim() || "—";
+  return `${rounded} ${label}`;
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type FormEvent } from "react";
+import { useId, useMemo, useState, type FormEvent } from "react";
 import {
   BasketIcon,
   BellIcon,
@@ -30,7 +30,6 @@ import {
   HouseholdGroceryList,
   HouseholdItem,
   UNITS,
-  Unit,
   generateId,
 } from "../../_lib/store";
 
@@ -130,15 +129,31 @@ const SUGGESTION_CATEGORIES: HouseholdCategory[] = [
   "Personal Care",
 ];
 
+/** Blank or invalid quantity defaults to 1 when adding a household item. */
+function householdQuantityFromInput(raw: string): number {
+  const t = raw.trim();
+  if (t === "") return 1;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) return 1;
+  return n;
+}
+
+/** Blank unit defaults to pcs when adding a household item. */
+function householdUnitFromInput(raw: string): string {
+  const t = raw.trim();
+  return t === "" ? "pcs" : t;
+}
+
 export default function HouseholdListPage() {
   const router = useRouter();
+  const householdUnitListId = useId();
   const [items, setItems, ready] = useHouseholdList();
   const [savedLists, setSavedLists] = useHouseholdLists();
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<HouseholdCategory | "">("");
-  const [quantity, setQuantity] = useState<number>(1);
-  const [unit, setUnit] = useState<Unit>("pcs");
+  const [quantityInput, setQuantityInput] = useState("");
+  const [unit, setUnit] = useState("pcs");
 
   const [tab, setTab] = useState<Tab>("all");
   const [collapsedCats, setCollapsedCats] = useState<Set<HouseholdCategory>>(
@@ -184,13 +199,13 @@ export default function HouseholdListPage() {
       id: generateId("hh"),
       name: trimmed,
       category,
-      quantity: Math.max(0, quantity),
-      unit,
+      quantity: householdQuantityFromInput(quantityInput),
+      unit: householdUnitFromInput(unit),
       picked: false,
     };
     setItems([...items, next]);
     setName("");
-    setQuantity(1);
+    setQuantityInput("");
   }
 
   function updateItem(id: string, patch: Partial<HouseholdItem>) {
@@ -360,6 +375,11 @@ export default function HouseholdListPage() {
 
   return (
     <>
+      <datalist id={householdUnitListId}>
+        {UNITS.map((u) => (
+          <option key={u} value={u} />
+        ))}
+      </datalist>
       <TopBar />
 
       <main className="flex-1 px-10 pb-16 pt-6 print:px-0 print:pt-0">
@@ -370,12 +390,19 @@ export default function HouseholdListPage() {
               setName={setName}
               category={category}
               setCategory={setCategory}
-              quantity={quantity}
-              setQuantity={setQuantity}
+              quantityInput={quantityInput}
+              setQuantityInput={setQuantityInput}
               unit={unit}
               setUnit={setUnit}
+              unitListId={householdUnitListId}
               onSubmit={handleAddItem}
             />
+            <p className="text-[11px] text-zinc-500">
+              Quantity is optional — leave blank to add with a quantity of{" "}
+              <span className="font-medium text-zinc-700">1</span>. Unit is free
+              text (suggestions from common units); blank defaults to{" "}
+              <span className="font-medium text-zinc-700">pcs</span>.
+            </p>
 
             <div className="rounded-2xl border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] print:border-none print:shadow-none">
               <Tabs
@@ -398,6 +425,7 @@ export default function HouseholdListPage() {
                   onToggleCollapsed={toggleCategoryCollapsed}
                   onUpdate={updateItem}
                   onRemove={removeItem}
+                  unitListId={householdUnitListId}
                 />
               ) : (
                 <FlatByCategoryList
@@ -406,6 +434,7 @@ export default function HouseholdListPage() {
                   setFilterCat={setFilterCat}
                   onUpdate={updateItem}
                   onRemove={removeItem}
+                  unitListId={householdUnitListId}
                 />
               )}
             </div>
@@ -576,10 +605,11 @@ type AddItemBarProps = {
   setName: (val: string) => void;
   category: HouseholdCategory | "";
   setCategory: (val: HouseholdCategory | "") => void;
-  quantity: number;
-  setQuantity: (val: number) => void;
-  unit: Unit;
-  setUnit: (val: Unit) => void;
+  quantityInput: string;
+  setQuantityInput: (val: string) => void;
+  unit: string;
+  setUnit: (val: string) => void;
+  unitListId: string;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
 
@@ -588,10 +618,11 @@ function AddItemBar({
   setName,
   category,
   setCategory,
-  quantity,
-  setQuantity,
+  quantityInput,
+  setQuantityInput,
   unit,
   setUnit,
+  unitListId,
   onSubmit,
 }: AddItemBarProps) {
   return (
@@ -619,22 +650,20 @@ function AddItemBar({
         type="number"
         min={0}
         step="any"
-        value={Number.isFinite(quantity) ? quantity : 0}
-        onChange={(event) => setQuantity(Number(event.target.value))}
-        aria-label="Quantity"
-        className="h-10 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-800 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+        value={quantityInput}
+        onChange={(event) => setQuantityInput(event.target.value)}
+        placeholder="optional"
+        aria-label="Quantity (optional, defaults to 1)"
+        className="h-10 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
       />
-      <SelectInput
+      <input
+        type="text"
         value={unit}
-        onChange={(value) => setUnit(value as Unit)}
-        options={[
-          { value: "pcs", label: "Qty" },
-          ...UNITS.filter((u) => u !== "pcs").map((u) => ({
-            value: u,
-            label: u,
-          })),
-        ]}
-        compact
+        onChange={(event) => setUnit(event.target.value)}
+        list={unitListId}
+        placeholder="pcs, g…"
+        aria-label="Unit (optional suggestions)"
+        className="h-10 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
       />
       <button
         type="submit"
@@ -763,6 +792,7 @@ type GroupedListProps = {
   onToggleCollapsed: (cat: HouseholdCategory) => void;
   onUpdate: (id: string, patch: Partial<HouseholdItem>) => void;
   onRemove: (id: string) => void;
+  unitListId: string;
 };
 
 function GroupedList({
@@ -771,6 +801,7 @@ function GroupedList({
   onToggleCollapsed,
   onUpdate,
   onRemove,
+  unitListId,
 }: GroupedListProps) {
   return (
     <div className="divide-y divide-zinc-100">
@@ -810,6 +841,7 @@ function GroupedList({
                     item={item}
                     onUpdate={onUpdate}
                     onRemove={onRemove}
+                    unitListId={unitListId}
                   />
                 ))}
               </div>
@@ -827,6 +859,7 @@ type FlatByCategoryListProps = {
   setFilterCat: (cat: HouseholdCategory | null) => void;
   onUpdate: (id: string, patch: Partial<HouseholdItem>) => void;
   onRemove: (id: string) => void;
+  unitListId: string;
 };
 
 function FlatByCategoryList({
@@ -835,6 +868,7 @@ function FlatByCategoryList({
   setFilterCat,
   onUpdate,
   onRemove,
+  unitListId,
 }: FlatByCategoryListProps) {
   const presentCats = HOUSEHOLD_CATEGORIES.filter((cat) =>
     items.some((it) => it.category === cat),
@@ -868,6 +902,7 @@ function FlatByCategoryList({
             onUpdate={onUpdate}
             onRemove={onRemove}
             showCategory
+            unitListId={unitListId}
           />
         ))}
       </div>
@@ -903,9 +938,16 @@ type ItemRowProps = {
   onUpdate: (id: string, patch: Partial<HouseholdItem>) => void;
   onRemove: (id: string) => void;
   showCategory?: boolean;
+  unitListId: string;
 };
 
-function ItemRow({ item, onUpdate, onRemove, showCategory }: ItemRowProps) {
+function ItemRow({
+  item,
+  onUpdate,
+  onRemove,
+  showCategory,
+  unitListId,
+}: ItemRowProps) {
   const style = CATEGORY_STYLES[item.category];
   return (
     <div className="flex items-center gap-3 px-4 py-3">
@@ -960,23 +1002,16 @@ function ItemRow({ item, onUpdate, onRemove, showCategory }: ItemRowProps) {
           <PlusIcon className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="relative">
-        <select
-          value={item.unit}
-          onChange={(event) =>
-            onUpdate(item.id, { unit: event.target.value as Unit })
-          }
-          aria-label={`Unit for ${item.name}`}
-          className="h-8 appearance-none rounded-lg border border-zinc-200 bg-white pl-2.5 pr-7 text-xs font-medium text-zinc-700 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-        >
-          {UNITS.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
-        </select>
-        <ChevronDownIcon className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
-      </div>
+      <input
+        type="text"
+        value={item.unit}
+        onChange={(event) =>
+          onUpdate(item.id, { unit: event.target.value })
+        }
+        list={unitListId}
+        aria-label={`Unit for ${item.name}`}
+        className="h-8 w-[4.5rem] rounded-lg border border-zinc-200 bg-white px-2 text-xs font-medium text-zinc-700 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+      />
       <button
         type="button"
         onClick={() => onRemove(item.id)}

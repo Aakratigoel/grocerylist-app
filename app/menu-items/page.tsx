@@ -12,13 +12,13 @@ import {
   TrashIcon,
 } from "../_components/icons";
 import { useIngredients, useMenuItems, useSettings } from "../_lib/hooks";
+import { parseQuantityAndUnit } from "../_lib/parse-quantity-and-unit";
 import {
   Ingredient,
   MenuItem,
   MenuItemCategory,
   MenuItemIngredient,
   UNITS,
-  Unit,
   generateId,
 } from "../_lib/store";
 
@@ -98,12 +98,21 @@ export default function MenuItemsPage() {
   const handleSave = ({
     menuItem,
     newIngredients,
+    ingredientUnitPatches = [],
   }: {
     menuItem: MenuItem;
     newIngredients: Ingredient[];
+    ingredientUnitPatches?: { ingredientId: string; unit: string }[];
   }) => {
-    if (newIngredients.length > 0) {
-      setIngredients([...ingredients, ...newIngredients]);
+    if (ingredientUnitPatches.length > 0 || newIngredients.length > 0) {
+      let nextIngredients = ingredients.map((i) => {
+        const p = ingredientUnitPatches.find((x) => x.ingredientId === i.id);
+        return p ? { ...i, unit: p.unit } : i;
+      });
+      if (newIngredients.length > 0) {
+        nextIngredients = [...nextIngredients, ...newIngredients];
+      }
+      setIngredients(nextIngredients);
     }
     if (dialog.kind === "edit") {
       setMenuItems(
@@ -332,17 +341,18 @@ function MenuItemCard({
 
 type IngredientRow = {
   name: string;
-  quantity: string;
-  unit: Unit;
+  /** Single editable field, e.g. "250 g", "2 pcs", "500ml". */
+  amount: string;
 };
 
-/** Blank quantity defaults to 1 per serving so orders still scale sensibly. */
-function quantityPerServingFromRow(quantity: string): number {
-  const t = quantity.trim();
-  if (t === "") return 1;
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < 0) return 1;
-  return n;
+function normalizeUnitInput(unit: string): string {
+  const t = unit.trim();
+  return t.length > 0 ? t : "g";
+}
+
+function formatAmountField(quantityPerServing: number, unit: string): string {
+  const u = unit.trim() || "g";
+  return `${quantityPerServing} ${u}`.trim();
 }
 
 function MenuItemDialog({
@@ -357,10 +367,12 @@ function MenuItemDialog({
   onSubmit: (payload: {
     menuItem: MenuItem;
     newIngredients: Ingredient[];
+    ingredientUnitPatches: { ingredientId: string; unit: string }[];
   }) => void;
 }) {
   const [settings] = useSettings();
   const datalistId = useId();
+  const unitDatalistId = useId();
   const isEdit = initial !== null;
 
   const [name, setName] = useState(initial?.name ?? "");
@@ -369,15 +381,15 @@ function MenuItemDialog({
   );
   const [description, setDescription] = useState(initial?.description ?? "");
   const [rows, setRows] = useState<IngredientRow[]>(() => {
-    if (!initial) return [{ name: "", quantity: "", unit: "g" }];
+    if (!initial) return [{ name: "", amount: "" }];
     return initial.ingredients.map((ing) => {
       const masterIngredient = ingredients.find(
         (m) => m.id === ing.ingredientId,
       );
+      const u = masterIngredient?.unit ?? "g";
       return {
         name: masterIngredient?.name ?? "",
-        quantity: String(ing.quantityPerServing),
-        unit: masterIngredient?.unit ?? "g",
+        amount: formatAmountField(ing.quantityPerServing, u),
       };
     });
   });
@@ -448,13 +460,13 @@ function MenuItemDialog({
         );
         return;
       }
-      const suggested = (payload.ingredients ?? []).map((ing) => ({
-        name: ing.name,
-        quantity: String(ing.quantity),
-        unit: (UNITS as readonly string[]).includes(ing.unit)
-          ? (ing.unit as Unit)
-          : "g",
-      }));
+      const suggested = (payload.ingredients ?? []).map((ing) => {
+        const u = String(ing.unit ?? "g").trim() || "g";
+        return {
+          name: ing.name,
+          amount: `${ing.quantity} ${u}`.trim(),
+        };
+      });
       if (suggested.length === 0) {
         setAiError("AI returned no ingredients. Try a more specific name.");
         return;
@@ -505,17 +517,7 @@ function MenuItemDialog({
 
   const updateRow = (index: number, patch: Partial<IngredientRow>) => {
     setRows((current) =>
-      current.map((row, i) => {
-        if (i !== index) return row;
-        const next = { ...row, ...patch };
-        if (patch.name !== undefined) {
-          const match = ingredients.find(
-            (ing) => ing.name.toLowerCase() === patch.name?.toLowerCase(),
-          );
-          if (match) next.unit = match.unit;
-        }
-        return next;
-      }),
+      current.map((row, i) => (i !== index ? row : { ...row, ...patch })),
     );
   };
 
@@ -529,6 +531,7 @@ function MenuItemDialog({
     const newIngredients: Ingredient[] = [];
     const menuIngredients: MenuItemIngredient[] = [];
     const newlyCreated = new Map<string, Ingredient>();
+    const unitPatchById = new Map<string, string>();
 
     for (const row of validRows) {
       const trimmed = row.name.trim();
@@ -538,26 +541,49 @@ function MenuItemDialog({
         ingredients.find((ing) => ing.name.toLowerCase() === key) ??
         newlyCreated.get(key);
 
+      const fallbackUnit = (existing?.unit ?? "g").trim() || "g";
+      const { qty, unit: parsedUnit } = parseQuantityAndUnit(
+        row.amount,
+        fallbackUnit,
+      );
+      const unitNorm = normalizeUnitInput(parsedUnit);
+
       let ingredientId: string;
       if (existing) {
         ingredientId = existing.id;
+        if (!newlyCreated.has(key)) {
+          unitPatchById.set(existing.id, unitNorm);
+        }
       } else {
-        const created: Ingredient = {
-          id: generateId("ing"),
-          name: trimmed,
-          unit: row.unit,
-          category: "Other",
-        };
-        newlyCreated.set(key, created);
-        newIngredients.push(created);
-        ingredientId = created.id;
+        const prev = newlyCreated.get(key);
+        if (prev) {
+          prev.unit = unitNorm;
+          ingredientId = prev.id;
+        } else {
+          const created: Ingredient = {
+            id: generateId("ing"),
+            name: trimmed,
+            unit: unitNorm,
+            category: "Other",
+          };
+          newlyCreated.set(key, created);
+          newIngredients.push(created);
+          ingredientId = created.id;
+        }
       }
 
       menuIngredients.push({
         ingredientId,
-        quantityPerServing: quantityPerServingFromRow(row.quantity),
+        quantityPerServing: qty,
       });
     }
+
+    const ingredientUnitPatches = Array.from(unitPatchById.entries())
+      .filter(([id, unit]) => {
+        const ing = ingredients.find((i) => i.id === id);
+        return ing && ing.unit !== unit;
+      })
+      .map(([ingredientId, unit]) => ({ ingredientId, unit }));
 
     onSubmit({
       menuItem: {
@@ -568,6 +594,7 @@ function MenuItemDialog({
         ingredients: menuIngredients,
       },
       newIngredients,
+      ingredientUnitPatches,
     });
   };
 
@@ -674,7 +701,7 @@ function MenuItemDialog({
                 <button
                   type="button"
                   onClick={() =>
-                    setRows([...rows, { name: "", quantity: "", unit: "g" }])
+                    setRows([...rows, { name: "", amount: "" }])
                   }
                   className="inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:text-green-800"
                 >
@@ -756,16 +783,17 @@ function MenuItemDialog({
                 <option key={ing.id} value={ing.name} />
               ))}
             </datalist>
+            <datalist id={unitDatalistId}>
+              {UNITS.map((u) => (
+                <option key={u} value={u} />
+              ))}
+            </datalist>
 
             <div className="mt-3 space-y-2">
-              {rows.map((row, index) => {
-                const matched = ingredients.find(
-                  (ing) => ing.name.toLowerCase() === row.name.trim().toLowerCase(),
-                );
-                return (
+              {rows.map((row, index) => (
                   <div
                     key={index}
-                    className="grid grid-cols-[1fr_90px_90px_auto] items-center gap-2"
+                    className="grid grid-cols-[1fr_minmax(0,10rem)_auto] items-center gap-2 sm:grid-cols-[1fr_minmax(0,12rem)_auto]"
                   >
                     <input
                       type="text"
@@ -778,32 +806,16 @@ function MenuItemDialog({
                       className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
                     />
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={row.quantity}
+                      type="text"
+                      value={row.amount}
                       onChange={(e) =>
-                        updateRow(index, { quantity: e.target.value })
+                        updateRow(index, { amount: e.target.value })
                       }
-                      placeholder="optional"
-                      aria-label="Quantity per serving (optional)"
+                      list={unitDatalistId}
+                      placeholder="e.g. 15 g, 2 pcs"
+                      aria-label="Amount per serving (number and unit)"
                       className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
                     />
-                    <select
-                      value={row.unit}
-                      onChange={(e) =>
-                        updateRow(index, { unit: e.target.value as Unit })
-                      }
-                      disabled={Boolean(matched)}
-                      aria-label="Unit"
-                      className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-2 text-sm text-zinc-900 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500"
-                    >
-                      {UNITS.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
                     <button
                       type="button"
                       onClick={() =>
@@ -816,15 +828,18 @@ function MenuItemDialog({
                       <TrashIcon className="h-4 w-4" />
                     </button>
                   </div>
-                );
-              })}
+                ))}
             </div>
 
             <p className="mt-3 text-[11px] text-zinc-500">
-              Type any ingredient name. Leave quantity blank to use{" "}
-              <span className="font-medium text-zinc-700">1</span> per serving.
-              New ingredients are added to your master list automatically;
-              existing ones lock the unit so quantities stay consistent.
+              Type any ingredient name. Amount is one field: number first, then
+              unit (e.g. <span className="font-medium text-zinc-700">100 g</span>,{" "}
+              <span className="font-medium text-zinc-700">500ml</span>). Leave
+              amount blank for{" "}
+              <span className="font-medium text-zinc-700">1</span> in your
+              catalog unit (or g). Suggestions list common units. Saving updates
+              the master ingredient&apos;s unit when the name matches your
+              catalog.
             </p>
           </div>
         </div>

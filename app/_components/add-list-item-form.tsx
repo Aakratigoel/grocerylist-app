@@ -7,10 +7,9 @@ import {
   INGREDIENT_CATEGORIES,
   Ingredient,
   IngredientCategory,
-  UNITS,
-  Unit,
   generateId,
 } from "../_lib/store";
+import { parseQuantityAndUnit } from "../_lib/parse-quantity-and-unit";
 
 export function AddListItemForm({
   ingredients,
@@ -23,8 +22,7 @@ export function AddListItemForm({
 }) {
   const datalistId = useId();
   const [name, setName] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [unit, setUnit] = useState<Unit>("g");
+  const [qtyAndUnit, setQtyAndUnit] = useState("");
   const [category, setCategory] = useState<IngredientCategory>("Other");
   const [matchedExisting, setMatchedExisting] = useState(false);
 
@@ -34,7 +32,7 @@ export function AddListItemForm({
       (i) => i.name.toLowerCase() === value.toLowerCase(),
     );
     if (match) {
-      setUnit(match.unit);
+      setQtyAndUnit((`1 ${match.unit}`).trim());
       setCategory(match.category);
       setMatchedExisting(true);
     } else {
@@ -46,27 +44,29 @@ export function AddListItemForm({
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    const raw = Number(quantity.trim());
-    const qty =
-      !quantity.trim() || !Number.isFinite(raw) || raw < 0 ? 1 : raw;
 
     const existing = ingredients.find(
       (i) => i.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+
+    const fallbackUnit = existing?.unit?.trim() || "g";
+    const { qty, unit: unitNorm } = parseQuantityAndUnit(
+      qtyAndUnit,
+      fallbackUnit,
     );
 
     onAdd({
       ingredientId: existing?.id ?? generateId("custom"),
       ingredientName: existing?.name ?? trimmed,
       totalQuantity: qty,
-      unit,
+      unit: unitNorm,
       category,
       inStock: false,
       custom: true,
     });
 
     setName("");
-    setQuantity("");
-    setUnit("g");
+    setQtyAndUnit("");
     setCategory("Other");
     setMatchedExisting(false);
   };
@@ -89,7 +89,7 @@ export function AddListItemForm({
         ) : null}
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px_120px_140px_auto]">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_minmax(0,11rem)_140px_auto]">
         <label className="block">
           <span className="block text-[11px] font-medium text-zinc-600">
             Item
@@ -112,35 +112,15 @@ export function AddListItemForm({
 
         <label className="block">
           <span className="block text-[11px] font-medium text-zinc-600">
-            Quantity
+            Amount
           </span>
           <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            placeholder="optional"
+            type="text"
+            value={qtyAndUnit}
+            onChange={(e) => setQtyAndUnit(e.target.value)}
+            placeholder="e.g. 3 g, 500ml"
             className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
           />
-        </label>
-
-        <label className="block">
-          <span className="block text-[11px] font-medium text-zinc-600">
-            Unit
-          </span>
-          <select
-            value={unit}
-            onChange={(e) => setUnit(e.target.value as Unit)}
-            disabled={matchedExisting}
-            className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500"
-          >
-            {UNITS.map((u) => (
-              <option key={u} value={u}>
-                {u}
-              </option>
-            ))}
-          </select>
         </label>
 
         <label className="block">
@@ -173,11 +153,16 @@ export function AddListItemForm({
       </div>
 
       <p className="mt-2 text-[11px] text-zinc-500">
-        Quantity is optional — blank defaults to 1.
+        Amount is one field: number first, then unit (examples:{" "}
+        <span className="font-medium text-zinc-600">250 g</span>,{" "}
+        <span className="font-medium text-zinc-600">500ml</span>,{" "}
+        <span className="font-medium text-zinc-600">2 pcs</span>). Leave blank
+        for quantity <span className="font-medium text-zinc-600">1</span> and
+        your catalog unit (or g).
         {matchedExisting ? (
           <span className="block pt-0.5">
-            Matched to your ingredient master list — unit and category are
-            locked.
+            Matched to your ingredient master list — category is locked; amount
+            prefills with the catalog unit and you can edit freely.
           </span>
         ) : null}
       </p>
