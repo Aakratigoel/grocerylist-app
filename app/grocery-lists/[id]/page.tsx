@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { PAGE_HEADER_CLASS } from "../../_lib/page-header-classes";
 import { NEW_GROCERY_LIST_START_HREF } from "../../orders/new/_wizard";
 import { useEffect, useMemo, useState } from "react";
 import { AddListItemForm } from "../../_components/add-list-item-form";
@@ -23,6 +24,8 @@ import {
   GroceryList,
   GroceryListLine,
   IngredientCategory,
+  formatGroceryListCsv,
+  formatGroceryListShareText,
   formatQuantity,
   mergeGroceryLinesDedup,
   sortGroceryLines,
@@ -148,7 +151,7 @@ export default function GroceryListDetailPage() {
   const inStock = list.lines.filter((l) => l.inStock);
 
   const handleShare = async () => {
-    const text = renderListAsText(list);
+    const text = formatGroceryListShareText(list);
     if (typeof navigator !== "undefined" && "share" in navigator) {
       try {
         await navigator.share({
@@ -170,7 +173,7 @@ export default function GroceryListDetailPage() {
   };
 
   const handleDownload = () => {
-    const csv = renderListAsCsv(list);
+    const csv = formatGroceryListCsv(list);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -413,10 +416,15 @@ export default function GroceryListDetailPage() {
 
       {toast ? (
         <div
-          role="status"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-lg"
+          className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom,0px))] z-[70] flex justify-center px-4 pb-1 sm:bottom-[max(1.5rem,env(safe-area-inset-bottom,0px))]"
+          aria-live="polite"
         >
-          {toast}
+          <div
+            role="status"
+            className="pointer-events-auto max-w-[min(100%,28rem)] truncate rounded-full bg-zinc-900 px-4 py-2 text-center text-sm font-medium text-white shadow-lg"
+          >
+            {toast}
+          </div>
         </div>
       ) : null}
     </>
@@ -425,18 +433,24 @@ export default function GroceryListDetailPage() {
 
 function TopBar({ title }: { title: string }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 pl-14 sm:flex-nowrap sm:px-8 sm:py-5 sm:pl-8 lg:px-10">
-      <nav className="flex items-center gap-2 text-sm" aria-label="Breadcrumb">
+    <div className={`${PAGE_HEADER_CLASS} items-center`}>
+      <nav
+        className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-sm"
+        aria-label="Breadcrumb"
+      >
         <Link
           href="/grocery-lists"
-          className="text-zinc-500 transition-colors hover:text-zinc-900"
+          className="shrink-0 text-zinc-500 transition-colors hover:text-zinc-900"
         >
-          Grocery Lists
+          <span className="sm:hidden">Lists</span>
+          <span className="hidden sm:inline">Grocery Lists</span>
         </Link>
-        <ChevronRightIcon className="h-4 w-4 text-zinc-300" />
-        <span className="font-semibold text-zinc-900">{title}</span>
+        <ChevronRightIcon className="h-4 w-4 shrink-0 text-zinc-300" />
+        <span className="min-w-0 truncate font-semibold text-zinc-900">
+          {title}
+        </span>
       </nav>
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <button
           type="button"
           aria-label="Help"
@@ -478,43 +492,6 @@ function DetailRow({
       </div>
     </div>
   );
-}
-
-function renderListAsText(list: GroceryList): string {
-  const header = [
-    `Grocery list — ${list.order.eventName || "Order"}`,
-    `For: ${list.order.clientName} · ${list.order.guestCount} servings`,
-    list.order.eventDate ? `Date: ${list.order.eventDate}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-  const items = list.lines
-    .filter((line) => !line.inStock)
-    .map(
-      (line) =>
-        `• ${line.ingredientName} — ${formatQuantity(line.totalQuantity, line.unit)}`,
-    )
-    .join("\n");
-  return `${header}\n\nTo buy:\n${items}`;
-}
-
-function renderListAsCsv(list: GroceryList): string {
-  const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
-  const rows = [
-    ["Ingredient", "Category", "Quantity", "Unit", "Status"]
-      .map(escape)
-      .join(","),
-    ...list.lines.map((line) =>
-      [
-        escape(line.ingredientName),
-        escape(line.category),
-        String(line.totalQuantity),
-        escape(line.unit),
-        escape(line.inStock ? "In stock" : "To buy"),
-      ].join(","),
-    ),
-  ];
-  return rows.join("\n");
 }
 
 function slug(value: string): string {

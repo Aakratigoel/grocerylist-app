@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PAGE_HEADER_CLASS } from "./_lib/page-header-classes";
 import { NEW_GROCERY_LIST_START_HREF } from "./orders/new/_wizard";
 import {
   ArrowRightIcon,
@@ -12,7 +13,7 @@ import {
 
 const heroFeatures = [
   "Save dishes once as menu items",
-  "Scale ingredients by servings or headcount",
+  "Combine ingredient amounts from your saved dishes",
   "Mark what you already have vs. need to buy",
   "Share, save, or download your list",
 ];
@@ -44,7 +45,7 @@ export default function Home() {
 
 function TopBar() {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 pl-14 sm:flex-nowrap sm:px-8 sm:py-5 sm:pl-8 lg:px-10">
+    <div className={`${PAGE_HEADER_CLASS} items-center`}>
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-base font-semibold text-zinc-900">
           Welcome <span aria-hidden>👋</span>

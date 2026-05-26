@@ -45,7 +45,7 @@ const howItWorks = [
     icon: ScaleIcon,
     title: "We Calculate Ingredients",
     description:
-      "Ingredients scale by how many people or servings you enter.",
+      "We scale each dish to your party size and combine ingredients.",
   },
   {
     icon: CartIcon,
@@ -140,7 +140,7 @@ export default function OrderDetailsStep() {
   return (
     <>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:col-span-2">
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-7 lg:col-span-2">
           <h2 className="text-lg font-semibold text-zinc-900">List details</h2>
           <p className="mt-1 text-sm text-zinc-500">
             Name this shop and who it&apos;s for — fields are flexible for home
@@ -187,7 +187,7 @@ export default function OrderDetailsStep() {
               </span>
             </Field>
 
-            <Field label="Servings or headcount">
+            <Field label="Party size (people)">
               <div className="relative flex items-center rounded-lg border border-zinc-200 bg-white focus-within:border-zinc-300 focus-within:ring-2 focus-within:ring-zinc-100">
                 <input
                   type="number"
@@ -195,7 +195,7 @@ export default function OrderDetailsStep() {
                   onChange={(e) => setGuestCount(e.target.value)}
                   min={1}
                   required
-                  placeholder="Enter guests or servings"
+                  placeholder="How many people?"
                   className="w-full bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none"
                 />
                 <span className="pr-3.5 text-xs font-medium text-zinc-400">
@@ -256,14 +256,18 @@ export default function OrderDetailsStep() {
           </form>
         </section>
 
-        <aside className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <aside className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-7">
           <h3 className="text-lg font-semibold text-zinc-900">Order Summary</h3>
 
           <ul className="mt-5 divide-y divide-zinc-100">
             <SummaryRow
               icon={<UserIcon className="h-4 w-4" />}
-              label="Servings / people"
-              value={`${summary.guestCount}`}
+              label="Party size"
+              value={
+                summary.guestCount > 0
+                  ? `${summary.guestCount} people`
+                  : "—"
+              }
             />
             <SummaryRow
               icon={<CalendarIcon className="h-4 w-4" />}
@@ -288,14 +292,15 @@ export default function OrderDetailsStep() {
               Tip
             </div>
             <p className="mt-1.5 text-xs leading-5 text-zinc-500">
-              This number scales every dish on your list — use servings for
-              meal prep or headcount for a crowd.
+              Set how many people this order is for. We scale each menu item
+              from the headcount it was written for (e.g. recipe for 50 → order
+              for 80 scales amounts up).
             </p>
           </div>
         </aside>
       </div>
 
-      <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-7">
         <h3 className="text-sm font-semibold text-zinc-900">How it works</h3>
 
         <ol className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] lg:items-start lg:gap-3">

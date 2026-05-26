@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { PAGE_HEADER_CLASS } from "../_lib/page-header-classes";
 import { NEW_GROCERY_LIST_START_HREF } from "../orders/new/_wizard";
 import {
   BellIcon,
@@ -58,14 +59,14 @@ export default function ClientsPage() {
 
 function TopBar() {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 pl-14 sm:flex-nowrap sm:px-8 sm:py-5 sm:pl-8 lg:px-10">
-      <div>
+    <div className={`${PAGE_HEADER_CLASS} items-center`}>
+      <div className="min-w-0 flex-1 pr-2 sm:flex-none sm:pr-0">
         <h1 className="text-base font-semibold text-zinc-900">Clients</h1>
         <p className="text-xs text-zinc-500">
           Auto-populated from the orders you create.
         </p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
         <Link
           href={NEW_GROCERY_LIST_START_HREF}
           className="inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-green-800"

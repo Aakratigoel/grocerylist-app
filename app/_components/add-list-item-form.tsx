@@ -161,8 +161,7 @@ export function AddListItemForm({
             onChange={(e) =>
               setCategory(e.target.value as IngredientCategory)
             }
-            disabled={matchedExisting}
-            className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500"
+            className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
           >
             {INGREDIENT_CATEGORIES.map((c) => (
               <option key={c} value={c}>
@@ -198,8 +197,8 @@ export function AddListItemForm({
         your catalog unit (or g).
         {matchedExisting ? (
           <span className="block pt-0.5">
-            Matched to your ingredient master list — category is locked; amount
-            prefills with the catalog unit and you can edit freely.
+            Matched to your catalog — category and unit are prefilled; you can
+            change them before adding.
           </span>
         ) : null}
       </p>

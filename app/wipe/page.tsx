@@ -38,7 +38,7 @@ export default function WipePage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-[50vh] max-w-md flex-col items-center justify-center gap-6 px-6 py-16 text-center">
+    <main className="mx-auto flex min-h-[50vh] max-w-md flex-col items-center justify-center gap-6 px-4 py-12 pb-[max(3rem,env(safe-area-inset-bottom,0px))] pl-14 pt-8 text-center sm:px-6 sm:py-16 sm:pl-6">
       <h1 className="text-lg font-semibold text-zinc-900">Clear browser storage</h1>
       <p className="text-sm text-zinc-600">
         This only affects data stored by this app under the{" "}

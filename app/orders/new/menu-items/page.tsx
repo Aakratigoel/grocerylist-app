@@ -89,20 +89,21 @@ export default function SelectMenuItemsStep() {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <section className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:col-span-2">
-        <div className="flex items-start justify-between gap-4">
-          <div>
+      <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-7 lg:col-span-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold text-zinc-900">
               Select Menu Items
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Pick the dishes for this order. Ingredients will be auto-loaded
-              and scaled to your guest count.
+              Pick dishes for this order. Amounts scale to your{" "}
+              {draft.guestCount > 0 ? draft.guestCount : "—"} people from each
+              recipe&apos;s saved headcount.
             </p>
           </div>
           <Link
             href={menuItemsCatalogHrefFromWizard("/orders/new/menu-items")}
-            className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:inline-flex"
+            className="inline-flex w-fit shrink-0 items-center gap-1.5 self-start rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 sm:self-auto sm:px-3.5 sm:py-2 sm:text-sm"
           >
             <PlusIcon className="h-4 w-4" />
             Manage menu
@@ -150,12 +151,12 @@ export default function SelectMenuItemsStep() {
         </div>
       </section>
 
-      <aside className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <aside className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-7">
         <h3 className="text-lg font-semibold text-zinc-900">Selection</h3>
         <p className="mt-1 text-xs text-zinc-500">
           For{" "}
           <span className="font-medium text-zinc-700">
-            {draft.guestCount || 0} servings
+            {draft.guestCount > 0 ? draft.guestCount : "—"} people
           </span>{" "}
           at{" "}
           <span className="font-medium text-zinc-700">

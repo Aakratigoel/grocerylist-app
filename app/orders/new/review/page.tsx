@@ -86,10 +86,9 @@ export default function ReviewStep() {
 
   const toBuyCount = lines.filter((l) => !l.inStock).length;
   const eventTimeLabel = formatTime(draft.eventTime);
-
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <section className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:col-span-2">
+      <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-7 lg:col-span-2">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-zinc-900">
@@ -130,8 +129,10 @@ export default function ReviewStep() {
           />
           <ReviewRow
             icon={<UserIcon className="h-4 w-4" />}
-            label="Servings / people"
-            value={`${draft.guestCount}`}
+            label="Party size"
+            value={
+              draft.guestCount > 0 ? `${draft.guestCount} people` : "—"
+            }
           />
           <ReviewRow
             icon={<MapPinIcon className="h-4 w-4" />}
@@ -201,54 +202,56 @@ export default function ReviewStep() {
               </button>
             ) : null}
           </div>
-          <p className="mt-2 text-[11px] text-zinc-500">
-            Quantities combine when the same ingredient appears across your
-            selected dishes (one row per ingredient). Mark each line{" "}
+          <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
+            Each dish stores amounts for a set headcount on the menu; we scale
+            to this order&apos;s{" "}
+            <span className="font-medium text-zinc-700">
+              {draft.guestCount > 0 ? draft.guestCount : "—"} people
+            </span>{" "}
+            and combine the same ingredient across dishes. Mark{" "}
             <span className="font-medium text-zinc-600">To buy</span> or{" "}
             <span className="font-medium text-zinc-600">In stock</span>; the
             grocery list only lists items to buy (
             <span className="font-medium text-zinc-700">{toBuyCount}</span>{" "}
             now).
           </p>
-          <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <ul className="mt-3 grid grid-cols-1 gap-1.5 lg:grid-cols-2 lg:gap-2">
             {lines.map((line) => (
               <li
                 key={groceryLineDedupKey(line)}
-                className="flex flex-col gap-2 rounded-lg border border-zinc-100 px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm sm:gap-3 sm:px-3 sm:py-2"
               >
-                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                  <span
-                    className={
-                      line.inStock
-                        ? "text-zinc-400 line-through"
-                        : "text-zinc-900"
-                    }
-                  >
-                    {line.ingredientName}
-                  </span>
-                  {line.custom ? (
-                    <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-700">
-                      Custom
+                <span className="min-w-0 flex-1">
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span
+                      className={
+                        line.inStock
+                          ? "truncate text-zinc-400 line-through"
+                          : "truncate font-medium text-zinc-900"
+                      }
+                    >
+                      {line.ingredientName}
                     </span>
-                  ) : null}
-                </span>
-                <div className="flex flex-wrap items-center justify-end gap-2 sm:justify-end">
-                  <StockToggle
-                    inStock={line.inStock}
-                    onPick={(next) =>
-                      setIngredientStockFlag(line, next)
-                    }
-                  />
-                  <span
-                    className={
-                      line.inStock
-                        ? "text-zinc-400 line-through tabular-nums"
-                        : "font-medium tabular-nums text-zinc-900"
-                    }
-                  >
-                    {formatQuantity(line.totalQuantity, line.unit)}
+                    {line.custom ? (
+                      <span className="shrink-0 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-700">
+                        Custom
+                      </span>
+                    ) : null}
                   </span>
-                </div>
+                </span>
+                <span
+                  className={`min-w-[3.25rem] shrink-0 text-right text-xs tabular-nums leading-tight sm:min-w-[4.5rem] sm:text-sm ${
+                    line.inStock
+                      ? "text-zinc-400 line-through"
+                      : "font-medium text-zinc-700"
+                  }`}
+                >
+                  {formatQuantity(line.totalQuantity, line.unit)}
+                </span>
+                <StockToggle
+                  inStock={line.inStock}
+                  onPick={(next) => setIngredientStockFlag(line, next)}
+                />
               </li>
             ))}
           </ul>
@@ -256,7 +259,7 @@ export default function ReviewStep() {
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-7">
           <h3 className="text-lg font-semibold text-zinc-900">Ready to go?</h3>
           <p className="mt-1 text-xs leading-5 text-zinc-500">
             We&apos;ll create a grocery list with{" "}

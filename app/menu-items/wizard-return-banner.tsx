@@ -14,8 +14,8 @@ function WizardReturnBannerInner() {
   if (!returnTo) return null;
 
   return (
-    <div className="border-b border-green-200 bg-green-50 px-4 py-3 sm:px-8 lg:px-10">
-      <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="border-b border-green-200 bg-green-50 px-4 py-3 pl-14 sm:px-8 sm:py-3.5 sm:pl-8 lg:px-10">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-green-900">
           <span className="font-medium">Grocery list in progress.</span> Your
           list details are saved — continue the wizard when you&apos;re done

@@ -48,12 +48,12 @@ export function Sidebar({
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       } fixed inset-y-0 left-0 z-50 md:static`}
     >
-      <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3 md:hidden">
+      <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))] md:hidden">
         <span className="text-sm font-semibold text-zinc-900">Menu</span>
         <button
           type="button"
           onClick={onMobileClose}
-          className="rounded-md px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
+          className="min-h-11 min-w-11 rounded-lg px-3 text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 active:bg-zinc-200"
           aria-label="Close menu"
         >
           Close

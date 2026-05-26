@@ -12,15 +12,21 @@ import {
   TrashIcon,
 } from "../_components/icons";
 import { WizardReturnBanner } from "./wizard-return-banner";
+import { MENU_ITEMS_HEADER_CLASS } from "../_lib/page-header-classes";
 import { useIngredients, useMenuItems } from "../_lib/hooks";
 import { parseQuantityAndUnit } from "../_lib/parse-quantity-and-unit";
 import {
+  INGREDIENT_CATEGORIES,
   Ingredient,
+  IngredientCategory,
   MenuItem,
   MenuItemCategory,
   MenuItemIngredient,
   UNITS,
+  effectivePartySize,
   generateId,
+  guessIngredientCategory,
+  readDraftOrder,
 } from "../_lib/store";
 
 const MENU_CATEGORIES: MenuItemCategory[] = [
@@ -100,15 +106,29 @@ export default function MenuItemsPage() {
     menuItem,
     newIngredients,
     ingredientUnitPatches = [],
+    ingredientCategoryPatches = [],
   }: {
     menuItem: MenuItem;
     newIngredients: Ingredient[];
     ingredientUnitPatches?: { ingredientId: string; unit: string }[];
+    ingredientCategoryPatches?: { ingredientId: string; category: IngredientCategory }[];
   }) => {
-    if (ingredientUnitPatches.length > 0 || newIngredients.length > 0) {
+    if (
+      ingredientUnitPatches.length > 0 ||
+      ingredientCategoryPatches.length > 0 ||
+      newIngredients.length > 0
+    ) {
       let nextIngredients = ingredients.map((i) => {
-        const p = ingredientUnitPatches.find((x) => x.ingredientId === i.id);
-        return p ? { ...i, unit: p.unit } : i;
+        const unitPatch = ingredientUnitPatches.find((x) => x.ingredientId === i.id);
+        const categoryPatch = ingredientCategoryPatches.find(
+          (x) => x.ingredientId === i.id,
+        );
+        if (!unitPatch && !categoryPatch) return i;
+        return {
+          ...i,
+          ...(unitPatch ? { unit: unitPatch.unit } : {}),
+          ...(categoryPatch ? { category: categoryPatch.category } : {}),
+        };
       });
       if (newIngredients.length > 0) {
         nextIngredients = [...nextIngredients, ...newIngredients];
@@ -178,6 +198,10 @@ export default function MenuItemsPage() {
         <MenuItemDialog
           ingredients={ingredients}
           initial={dialog.kind === "edit" ? dialog.item : null}
+          defaultRecipeServesCount={(() => {
+            const fromDraft = readDraftOrder().guestCount;
+            return fromDraft > 0 ? fromDraft : 10;
+          })()}
           onClose={() => setDialog({ kind: "closed" })}
           onSubmit={handleSave}
         />
@@ -196,46 +220,50 @@ function TopBar({
   onSearchChange: (value: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-white px-4 py-4 pl-14 sm:flex-nowrap sm:px-8 sm:py-5 sm:pl-8 lg:px-10">
-      <div>
+    <div className={MENU_ITEMS_HEADER_CLASS}>
+      <div className="min-w-0 flex-1 sm:max-w-md sm:flex-none">
         <h1 className="text-base font-semibold text-zinc-900">Menu Items</h1>
-        <p className="text-xs text-zinc-500">
+        <p className="mt-0.5 text-xs text-zinc-500 sm:line-clamp-2">
           Build your recipes once — reuse them on every grocery list.
         </p>
       </div>
-      <div className="flex items-center gap-3">
-        <div className="relative">
+
+      <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:items-center sm:gap-3">
+        <div className="relative min-w-0 sm:w-64 sm:shrink-0">
           <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
             type="search"
             value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search menu items"
-            className="w-64 rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
+            className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
           />
         </div>
-        <button
-          type="button"
-          onClick={onAdd}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-green-800"
-        >
-          <PlusIcon className="h-4 w-4" />
-          Add menu item
-        </button>
-        <button
-          type="button"
-          aria-label="Help"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
-        >
-          <HelpIcon className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          aria-label="Notifications"
-          className="text-zinc-500 hover:text-zinc-900"
-        >
-          <BellIcon className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={onAdd}
+            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-green-700 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-green-800"
+          >
+            <PlusIcon className="h-4 w-4 shrink-0" />
+            <span className="sm:hidden">Add</span>
+            <span className="hidden sm:inline">Add menu item</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Help"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+          >
+            <HelpIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Notifications"
+            className="flex h-10 w-10 items-center justify-center text-zinc-500 hover:text-zinc-900"
+          >
+            <BellIcon className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -313,7 +341,10 @@ function MenuItemCard({
 
       <div className="mt-4 rounded-xl bg-zinc-50 p-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-          Ingredients per serving · {item.ingredients.length}
+          For {item.recipeServesCount && item.recipeServesCount > 0
+            ? `${item.recipeServesCount} people`
+            : "—"}{" "}
+          · {item.ingredients.length} ingredients
         </p>
         <ul className="mt-2 space-y-1 text-xs text-zinc-600">
           {item.ingredients.slice(0, 4).map((ing) => {
@@ -345,7 +376,14 @@ type IngredientRow = {
   name: string;
   /** Single editable field, e.g. "250 g", "2 pcs", "500ml". */
   amount: string;
+  category: IngredientCategory;
+  /** True when name matches an existing catalog ingredient. */
+  fromCatalog: boolean;
 };
+
+function emptyIngredientRow(): IngredientRow {
+  return { name: "", amount: "", category: "Other", fromCatalog: false };
+}
 
 function normalizeUnitInput(unit: string): string {
   const t = unit.trim();
@@ -360,16 +398,22 @@ function formatAmountField(quantityPerServing: number, unit: string): string {
 function MenuItemDialog({
   ingredients,
   initial,
+  defaultRecipeServesCount,
   onClose,
   onSubmit,
 }: {
   ingredients: Ingredient[];
   initial: MenuItem | null;
+  defaultRecipeServesCount: number;
   onClose: () => void;
   onSubmit: (payload: {
     menuItem: MenuItem;
     newIngredients: Ingredient[];
     ingredientUnitPatches: { ingredientId: string; unit: string }[];
+    ingredientCategoryPatches: {
+      ingredientId: string;
+      category: IngredientCategory;
+    }[];
   }) => void;
 }) {
   const datalistId = useId();
@@ -381,8 +425,14 @@ function MenuItemDialog({
     initial?.category ?? "Main",
   );
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [recipeServesCount, setRecipeServesCount] = useState(() => {
+    if (initial?.recipeServesCount && initial.recipeServesCount > 0) {
+      return String(initial.recipeServesCount);
+    }
+    return String(effectivePartySize(defaultRecipeServesCount));
+  });
   const [rows, setRows] = useState<IngredientRow[]>(() => {
-    if (!initial) return [{ name: "", amount: "" }];
+    if (!initial) return [emptyIngredientRow()];
     return initial.ingredients.map((ing) => {
       const masterIngredient = ingredients.find(
         (m) => m.id === ing.ingredientId,
@@ -391,6 +441,8 @@ function MenuItemDialog({
       return {
         name: masterIngredient?.name ?? "",
         amount: formatAmountField(ing.quantityPerServing, u),
+        category: masterIngredient?.category ?? "Other",
+        fromCatalog: Boolean(masterIngredient),
       };
     });
   });
@@ -461,13 +513,22 @@ function MenuItemDialog({
         );
         return;
       }
-      const suggested = (payload.ingredients ?? []).map((ing) => {
-        const u = String(ing.unit ?? "g").trim() || "g";
-        return {
-          name: ing.name,
-          amount: `${ing.quantity} ${u}`.trim(),
-        };
-      });
+      const suggested: IngredientRow[] = (payload.ingredients ?? []).map(
+        (ing) => {
+          const u = String(ing.unit ?? "g").trim() || "g";
+          const trimmedName = String(ing.name ?? "").trim();
+          const key = trimmedName.toLowerCase();
+          const catalog = key
+            ? ingredients.find((i) => i.name.toLowerCase() === key)
+            : undefined;
+          return {
+            name: catalog?.name ?? trimmedName,
+            amount: `${ing.quantity} ${u}`.trim(),
+            category: catalog?.category ?? guessIngredientCategory(trimmedName),
+            fromCatalog: Boolean(catalog),
+          };
+        },
+      );
       if (suggested.length === 0) {
         setAiError("AI returned no ingredients. Try a more specific name.");
         return;
@@ -479,7 +540,7 @@ function MenuItemDialog({
           meaningful.map((row) => row.name.trim().toLowerCase()),
         );
         const additions = suggested.filter(
-          (row) => !existingKeys.has(row.name.toLowerCase()),
+          (row) => !existingKeys.has(row.name.trim().toLowerCase()),
         );
         if (meaningful.length === 0) return suggested;
         return [...meaningful, ...additions];
@@ -524,6 +585,26 @@ function MenuItemDialog({
     );
   };
 
+  const handleIngredientNameChange = (index: number, value: string) => {
+    const key = value.trim().toLowerCase();
+    const match = key
+      ? ingredients.find((i) => i.name.toLowerCase() === key)
+      : undefined;
+    if (match) {
+      updateRow(index, {
+        name: match.name,
+        category: match.category,
+        fromCatalog: true,
+      });
+    } else {
+      updateRow(index, {
+        name: value,
+        category: guessIngredientCategory(value),
+        fromCatalog: false,
+      });
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -535,6 +616,7 @@ function MenuItemDialog({
     const menuIngredients: MenuItemIngredient[] = [];
     const newlyCreated = new Map<string, Ingredient>();
     const unitPatchById = new Map<string, string>();
+    const categoryPatchById = new Map<string, IngredientCategory>();
 
     for (const row of validRows) {
       const trimmed = row.name.trim();
@@ -556,18 +638,23 @@ function MenuItemDialog({
         ingredientId = existing.id;
         if (!newlyCreated.has(key)) {
           unitPatchById.set(existing.id, unitNorm);
+          const catalogIng = ingredients.find((i) => i.id === existing.id);
+          if (catalogIng && catalogIng.category !== row.category) {
+            categoryPatchById.set(existing.id, row.category);
+          }
         }
       } else {
         const prev = newlyCreated.get(key);
         if (prev) {
           prev.unit = unitNorm;
+          prev.category = row.category;
           ingredientId = prev.id;
         } else {
           const created: Ingredient = {
             id: generateId("ing"),
             name: trimmed,
             unit: unitNorm,
-            category: "Other",
+            category: row.category,
           };
           newlyCreated.set(key, created);
           newIngredients.push(created);
@@ -588,16 +675,30 @@ function MenuItemDialog({
       })
       .map(([ingredientId, unit]) => ({ ingredientId, unit }));
 
+    const ingredientCategoryPatches = Array.from(categoryPatchById.entries())
+      .filter(([id, category]) => {
+        const ing = ingredients.find((i) => i.id === id);
+        return ing && ing.category !== category;
+      })
+      .map(([ingredientId, category]) => ({ ingredientId, category }));
+
+    const serves = Math.max(
+      1,
+      Math.floor(Number(recipeServesCount)) || defaultRecipeServesCount,
+    );
+
     onSubmit({
       menuItem: {
         id: initial?.id ?? generateId("menu"),
         name: name.trim(),
         category,
         description: description.trim() || undefined,
+        recipeServesCount: serves,
         ingredients: menuIngredients,
       },
       newIngredients,
       ingredientUnitPatches,
+      ingredientCategoryPatches,
     });
   };
 
@@ -619,7 +720,7 @@ function MenuItemDialog({
             <p className="text-xs text-zinc-500">
               {isEdit
                 ? "Update the recipe — changes apply to future grocery lists only."
-                : "Quantities per serving are optional (blank defaults to 1); we scale by guest count."}
+                : "Enter total ingredient amounts for the headcount below. Other orders scale from that."}
             </p>
           </div>
           <button
@@ -675,12 +776,30 @@ function MenuItemDialog({
                 className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
               />
             </label>
+            <label className="block sm:col-span-2">
+              <span className="text-xs font-medium text-zinc-600">
+                Recipe is for how many people?
+              </span>
+              <input
+                type="number"
+                min={1}
+                required
+                value={recipeServesCount}
+                onChange={(e) => setRecipeServesCount(e.target.value)}
+                placeholder="e.g. 50"
+                className="mt-1.5 w-full max-w-[10rem] rounded-lg border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
+              />
+              <span className="mt-1 block text-[11px] text-zinc-500">
+                Ingredient amounts below should be totals for this many people.
+                A later order with a different headcount is scaled automatically.
+              </span>
+            </label>
           </div>
 
           <div className="mt-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-zinc-900">
-                Ingredients per serving
+                Ingredients (totals for that headcount)
               </h3>
               <div className="flex items-center gap-3">
                 <button
@@ -703,9 +822,7 @@ function MenuItemDialog({
                 </button>
                 <button
                   type="button"
-                  onClick={() =>
-                    setRows([...rows, { name: "", amount: "" }])
-                  }
+                  onClick={() => setRows([...rows, emptyIngredientRow()])}
                   className="inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:text-green-800"
                 >
                   <PlusIcon className="h-3.5 w-3.5" />
@@ -794,58 +911,67 @@ function MenuItemDialog({
 
             <div className="mt-3 space-y-2">
               {rows.map((row, index) => (
-                  <div
-                    key={index}
-                    className="grid grid-cols-[1fr_minmax(0,10rem)_auto] items-center gap-2 sm:grid-cols-[1fr_minmax(0,12rem)_auto]"
+                <div
+                  key={index}
+                  className="grid grid-cols-1 gap-2 rounded-lg border border-zinc-100 bg-zinc-50/50 p-2 sm:grid-cols-[1fr_minmax(0,9rem)_minmax(0,8.5rem)_auto] sm:items-center sm:border-0 sm:bg-transparent sm:p-0"
+                >
+                  <input
+                    type="text"
+                    value={row.name}
+                    onChange={(e) =>
+                      handleIngredientNameChange(index, e.target.value)
+                    }
+                    list={datalistId}
+                    placeholder="e.g. Paneer (new → catalog)"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
+                  />
+                  <input
+                    type="text"
+                    value={row.amount}
+                    onChange={(e) =>
+                      updateRow(index, { amount: e.target.value })
+                    }
+                    list={unitDatalistId}
+                    placeholder="e.g. 500 g"
+                    aria-label="Total amount for this dish (number and unit)"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
+                  />
+                  <select
+                    value={row.category}
+                    onChange={(e) =>
+                      updateRow(index, {
+                        category: e.target.value as IngredientCategory,
+                      })
+                    }
+                    aria-label="Ingredient category"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-2 text-sm text-zinc-900 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
                   >
-                    <input
-                      type="text"
-                      value={row.name}
-                      onChange={(e) =>
-                        updateRow(index, { name: e.target.value })
-                      }
-                      onBlur={() => {
-                        const key = row.name.trim().toLowerCase();
-                        if (!key) return;
-                        const ing = ingredients.find(
-                          (i) => i.name.toLowerCase() === key,
-                        );
-                        if (ing) updateRow(index, { name: ing.name });
-                      }}
-                      list={datalistId}
-                      placeholder="e.g. Saffron (new names saved to catalog)"
-                      className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
-                    />
-                    <input
-                      type="text"
-                      value={row.amount}
-                      onChange={(e) =>
-                        updateRow(index, { amount: e.target.value })
-                      }
-                      list={unitDatalistId}
-                      placeholder="e.g. 15 g, 2 pcs"
-                      aria-label="Amount per serving (number and unit)"
-                      className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-100"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setRows(rows.filter((_, i) => i !== index))
-                      }
-                      disabled={rows.length === 1}
-                      aria-label="Remove ingredient row"
-                      className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                    {INGREDIENT_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRows(rows.filter((_, i) => i !== index))
+                    }
+                    disabled={rows.length === 1}
+                    aria-label="Remove ingredient row"
+                    className="justify-self-end rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-400 sm:justify-self-auto"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
             </div>
 
             <p className="mt-3 text-[11px] text-zinc-500">
               Type any ingredient name — new names are added to your shared
-              catalog when you save, so lists can merge the same item across
-              dishes. Amount is number first, then unit (e.g.{" "}
+              catalog when you save. Pick Produce, Dairy, etc. — we suggest a
+              category from the name when we can. Amount is number
+              first, then unit (e.g.{" "}
               <span className="font-medium text-zinc-700">100 g</span>,{" "}
               <span className="font-medium text-zinc-700">500ml</span>). Leave
               blank for{" "}

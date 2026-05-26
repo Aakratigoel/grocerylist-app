@@ -24,4 +24,10 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Avoid accidental horizontal scroll from wide children (flex/grid). */
+html {
+  overflow-x: hidden;
 }

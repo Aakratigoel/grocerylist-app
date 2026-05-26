@@ -34,6 +34,133 @@ export const INGREDIENT_CATEGORIES: IngredientCategory[] = [
   "Other",
 ];
 
+/** Best-effort category for new catalog ingredients (user can override in the form). */
+export function guessIngredientCategory(name: string): IngredientCategory {
+  const n = name.trim().toLowerCase();
+  if (!n) return "Other";
+
+  const has = (...words: string[]) => words.some((w) => n.includes(w));
+
+  if (
+    has(
+      "milk",
+      "cheese",
+      "butter",
+      "cream",
+      "yogurt",
+      "paneer",
+      "khoya",
+      "mawa",
+      "ghee",
+      "dairy",
+      "whey",
+      "curd",
+    )
+  ) {
+    return "Dairy";
+  }
+  if (
+    has(
+      "chicken",
+      "mutton",
+      "lamb",
+      "beef",
+      "pork",
+      "fish",
+      "shrimp",
+      "prawn",
+      "meat",
+      "poultry",
+      "egg",
+    )
+  ) {
+    return "Meat & Poultry";
+  }
+  if (
+    has(
+      "tomato",
+      "onion",
+      "garlic",
+      "ginger",
+      "potato",
+      "cauliflower",
+      "spinach",
+      "mint",
+      "coriander",
+      "cilantro",
+      "lemon",
+      "lime",
+      "chili",
+      "chilli",
+      "pepper",
+      "lettuce",
+      "carrot",
+      "cucumber",
+      "pea",
+      "beans",
+      "cabbage",
+      "produce",
+      "herb",
+      "basil",
+      "parsley",
+    )
+  ) {
+    return "Produce";
+  }
+  if (
+    has(
+      "cumin",
+      "turmeric",
+      "masala",
+      "cardamom",
+      "saffron",
+      "clove",
+      "cinnamon",
+      "nutmeg",
+      "paprika",
+      "oregano",
+      "thyme",
+      "spice",
+    )
+  ) {
+    return "Spices";
+  }
+  if (
+    has(
+      "flour",
+      "maida",
+      "aata",
+      "atta",
+      "bread",
+      "naan",
+      "roti",
+      "yeast",
+      "baking powder",
+    )
+  ) {
+    return "Bakery";
+  }
+  if (
+    has(
+      "rice",
+      "dal",
+      "lentil",
+      "rajma",
+      "oil",
+      "sugar",
+      "salt",
+      "vinegar",
+      "soy",
+      "pasta",
+      "noodle",
+      "flour",
+    )
+  ) {
+    return "Pantry";
+  }
+  return "Other";
+}
+
 export type Ingredient = {
   id: string;
   name: string;
@@ -41,6 +168,7 @@ export type Ingredient = {
   category: IngredientCategory;
 };
 
+/** Total amount for this dish for `recipeServesCount` people on the menu item. */
 export type MenuItemIngredient = {
   ingredientId: string;
   quantityPerServing: number;
@@ -59,6 +187,8 @@ export type MenuItem = {
   name: string;
   category: MenuItemCategory;
   description?: string;
+  /** Headcount the ingredient amounts below were entered for (e.g. 50). */
+  recipeServesCount?: number;
   ingredients: MenuItemIngredient[];
 };
 
@@ -297,6 +427,7 @@ export const SEED_MENU_ITEMS: MenuItem[] = [
     name: "Paneer Butter Masala",
     category: "Main",
     description: "Cubes of paneer in a creamy tomato gravy.",
+    recipeServesCount: 10,
     ingredients: [
       { ingredientId: "ing-paneer", quantityPerServing: 100 },
       { ingredientId: "ing-butter", quantityPerServing: 15 },
@@ -317,6 +448,7 @@ export const SEED_MENU_ITEMS: MenuItem[] = [
     name: "Chicken Biryani",
     category: "Main",
     description: "Layered basmati rice with marinated chicken and spices.",
+    recipeServesCount: 10,
     ingredients: [
       { ingredientId: "ing-rice-basmati", quantityPerServing: 80 },
       { ingredientId: "ing-chicken", quantityPerServing: 150 },
@@ -339,6 +471,7 @@ export const SEED_MENU_ITEMS: MenuItem[] = [
     name: "Dal Makhani",
     category: "Main",
     description: "Slow-cooked black lentils with butter and cream.",
+    recipeServesCount: 10,
     ingredients: [
       { ingredientId: "ing-dal-urad", quantityPerServing: 50 },
       { ingredientId: "ing-rajma", quantityPerServing: 20 },
@@ -357,6 +490,7 @@ export const SEED_MENU_ITEMS: MenuItem[] = [
     name: "Butter Naan",
     category: "Bread",
     description: "Soft leavened flatbread brushed with butter.",
+    recipeServesCount: 10,
     ingredients: [
       { ingredientId: "ing-flour-maida", quantityPerServing: 80 },
       { ingredientId: "ing-yogurt", quantityPerServing: 15 },
@@ -371,6 +505,7 @@ export const SEED_MENU_ITEMS: MenuItem[] = [
     name: "Gulab Jamun",
     category: "Dessert",
     description: "Khoya dumplings soaked in cardamom-saffron sugar syrup.",
+    recipeServesCount: 10,
     ingredients: [
       { ingredientId: "ing-khoya", quantityPerServing: 30 },
       { ingredientId: "ing-flour-maida", quantityPerServing: 5 },
@@ -909,17 +1044,44 @@ export function sortGroceryLines(lines: GroceryListLine[]): GroceryListLine[] {
   });
 }
 
+export function effectivePartySize(guestCount: number): number {
+  const n = Math.floor(Number(guestCount));
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return n;
+}
+
+/** Scale a recipe written for `recipeServes` people to this order’s headcount. */
+export function recipeScaleFactor(
+  recipeServes: number | undefined,
+  orderGuestCount: number,
+): number {
+  const order = effectivePartySize(orderGuestCount);
+  const recipe = Math.floor(Number(recipeServes));
+  if (!Number.isFinite(recipe) || recipe < 1) {
+    return 1;
+  }
+  return order / recipe;
+}
+
+/** Sum scaled menu amounts (same ingredient across dishes is combined). */
 export function aggregateGroceryLines(
   selectedMenuItems: MenuItem[],
-  guestCount: number,
+  orderGuestCount: number,
   ingredients: Ingredient[],
   inStockIds: Set<string>,
 ): GroceryListLine[] {
   const totals = new Map<string, number>();
   for (const menuItem of selectedMenuItems) {
+    const factor = recipeScaleFactor(
+      menuItem.recipeServesCount,
+      orderGuestCount,
+    );
     for (const item of menuItem.ingredients) {
       const current = totals.get(item.ingredientId) ?? 0;
-      totals.set(item.ingredientId, current + item.quantityPerServing * guestCount);
+      totals.set(
+        item.ingredientId,
+        current + item.quantityPerServing * factor,
+      );
     }
   }
 
@@ -951,4 +1113,147 @@ export function formatQuantity(quantity: number, unit: IngredientUnit): string {
   const rounded = Math.round(quantity * 100) / 100;
   const label = unit.trim() || "—";
   return `${rounded} ${label}`;
+}
+
+function formatShareDateLine(eventDate: string, eventTime: string): string | null {
+  if (!eventDate?.trim()) return null;
+  const date = new Date(eventDate);
+  if (Number.isNaN(date.getTime())) return `Date: ${eventDate}`;
+  const datePart = date.toLocaleDateString("en-US", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  if (!eventTime?.trim()) return datePart;
+  const [hStr, mStr] = eventTime.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  if (Number.isNaN(h) || Number.isNaN(m)) return datePart;
+  const period = h < 12 ? "AM" : "PM";
+  const display12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const timePart = `${display12}:${String(m).padStart(2, "0")} ${period}`;
+  return `${datePart} · ${timePart}`;
+}
+
+/** Plain-text grocery list for Share / clipboard (grouped by category). */
+export function formatGroceryListShareText(list: GroceryList): string {
+  const order = list.order;
+  const title = order.eventName?.trim() || "Grocery list";
+  const toBuy = sortGroceryLines(list.lines.filter((l) => !l.inStock));
+  const inStock = sortGroceryLines(list.lines.filter((l) => l.inStock));
+
+  const divider = "──────────────────────────────";
+  const lines: string[] = [];
+
+  lines.push("GROCERY LIST", divider, title, "");
+
+  const meta: string[] = [];
+  if (order.guestCount > 0) {
+    meta.push(`Party size: ${order.guestCount} people`);
+  }
+  const when = formatShareDateLine(order.eventDate, order.eventTime);
+  if (when) meta.push(when);
+  if (order.clientName?.trim()) {
+    meta.push(`For: ${order.clientName.trim()}`);
+  }
+  if (order.venue?.trim()) {
+    meta.push(`Location: ${order.venue.trim()}`);
+  }
+  if (meta.length > 0) {
+    lines.push(...meta, "");
+  }
+
+  if (toBuy.length === 0) {
+    lines.push("Nothing to buy — everything is marked in stock.", "");
+  } else {
+    lines.push(`TO BUY (${toBuy.length} item${toBuy.length === 1 ? "" : "s"})`, divider, "");
+
+    const byCategory = new Map<IngredientCategory, GroceryListLine[]>();
+    for (const cat of INGREDIENT_CATEGORIES) byCategory.set(cat, []);
+    for (const line of toBuy) {
+      const bucket = byCategory.get(line.category) ?? [];
+      bucket.push(line);
+      byCategory.set(line.category, bucket);
+    }
+
+    for (const category of INGREDIENT_CATEGORIES) {
+      const items = byCategory.get(category) ?? [];
+      if (items.length === 0) continue;
+
+      const nameWidth = Math.min(
+        28,
+        Math.max(...items.map((l) => l.ingredientName.length), 8),
+      );
+
+      lines.push(category.toUpperCase());
+      for (const line of items) {
+        const qty = formatQuantity(line.totalQuantity, line.unit);
+        const name = line.ingredientName;
+        const pad = " ".repeat(Math.max(1, nameWidth - name.length + 2));
+        const custom = line.custom ? " *" : "";
+        lines.push(`  • ${name}${pad}${qty}${custom}`);
+      }
+      lines.push("");
+    }
+  }
+
+  if (inStock.length > 0) {
+    lines.push(divider);
+    lines.push(
+      `ALREADY IN STOCK (${inStock.length}) — not on shopping list`,
+      "",
+    );
+    const names = inStock.map((l) => l.ingredientName).join(", ");
+    const wrapped = wrapShareText(names, 52);
+    lines.push(...wrapped, "");
+  }
+
+  if (order.notes?.trim()) {
+    lines.push(divider, "NOTES", "", ...wrapShareText(order.notes.trim(), 52), "");
+  }
+
+  if (toBuy.some((l) => l.custom)) {
+    lines.push("* = added manually on this list");
+  }
+
+  lines.push(divider, "Shared from GroceryList");
+
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function wrapShareText(text: string, maxWidth: number): string[] {
+  const words = text.split(/\s+/);
+  const out: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > maxWidth && line) {
+      out.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) out.push(line);
+  return out.length > 0 ? out : [text];
+}
+
+export function formatGroceryListCsv(list: GroceryList): string {
+  const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+  const rows = [
+    ["Ingredient", "Category", "Quantity", "Unit", "Status"]
+      .map(escape)
+      .join(","),
+    ...sortGroceryLines(list.lines).map((line) =>
+      [
+        escape(line.ingredientName),
+        escape(line.category),
+        String(line.totalQuantity),
+        escape(line.unit),
+        escape(line.inStock ? "In stock" : "To buy"),
+      ].join(","),
+    ),
+  ];
+  return rows.join("\n");
 }

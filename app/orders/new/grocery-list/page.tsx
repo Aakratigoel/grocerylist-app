@@ -28,6 +28,8 @@ import {
   Order,
   aggregateGroceryLines,
   clearDraftOrder,
+  formatGroceryListCsv,
+  formatGroceryListShareText,
   formatQuantity,
   readDraftOrder,
   generateId,
@@ -190,7 +192,7 @@ export default function GroceryListStep() {
 
   const handleShare = async () => {
     const list = buildList();
-    const text = renderListAsText(list);
+    const text = formatGroceryListShareText(list);
     if (typeof navigator !== "undefined" && "share" in navigator) {
       try {
         await navigator.share({
@@ -212,7 +214,7 @@ export default function GroceryListStep() {
 
   const handleDownload = () => {
     const list = buildList();
-    const csv = renderListAsCsv(list);
+    const csv = formatGroceryListCsv(list);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -228,7 +230,7 @@ export default function GroceryListStep() {
   return (
     <>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:col-span-2">
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-7 lg:col-span-2">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-zinc-900">
@@ -318,42 +320,42 @@ export default function GroceryListStep() {
                     {rows.map((line) => (
                       <li
                         key={groceryLineDedupKey(line)}
-                        className="flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                        className="flex items-center gap-2 px-2 py-2 text-sm sm:gap-3 sm:px-3 sm:py-2.5"
                       >
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="flex h-2 w-2 shrink-0 rounded-full bg-amber-500" />
-                          <span className="font-medium text-zinc-900">
-                            {line.ingredientName}
-                          </span>
-                          {line.custom ? (
-                            <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-700">
-                              Custom
+                        <span className="flex h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                        <div className="min-w-0 flex-1">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="truncate font-medium text-zinc-900">
+                              {line.ingredientName}
                             </span>
-                          ) : null}
+                            {line.custom ? (
+                              <span className="shrink-0 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-700">
+                                Custom
+                              </span>
+                            ) : null}
+                          </span>
                         </div>
-                        <div className="flex flex-wrap items-center justify-end gap-2">
-                          <StockToggle
-                            inStock={line.inStock}
-                            onPick={(next) =>
-                              setIngredientStockFlag(line, next)
-                            }
-                          />
-                          <span className="font-semibold tabular-nums text-zinc-900">
+                        <span className="min-w-[3.25rem] shrink-0 text-right text-xs tabular-nums text-zinc-700 sm:min-w-[4.5rem] sm:text-sm">
+                          <span className="font-semibold">
                             {formatQuantity(line.totalQuantity, line.unit)}
                           </span>
-                          {line.custom && lineHasExtraContributions(line) ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleRemoveExtraContributions(line)
-                              }
-                              aria-label={`Remove ${line.ingredientName}`}
-                              className="rounded-md p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600"
-                            >
-                              <TrashIcon className="h-3.5 w-3.5" />
-                            </button>
-                          ) : null}
-                        </div>
+                        </span>
+                        <StockToggle
+                          inStock={line.inStock}
+                          onPick={(next) => setIngredientStockFlag(line, next)}
+                        />
+                        {line.custom && lineHasExtraContributions(line) ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRemoveExtraContributions(line)
+                            }
+                            aria-label={`Remove ${line.ingredientName}`}
+                            className="shrink-0 rounded-md p-2 text-zinc-400 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <TrashIcon className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
@@ -371,20 +373,18 @@ export default function GroceryListStep() {
                 {inStock.map((line) => (
                   <li
                     key={groceryLineDedupKey(line)}
-                    className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                    className="flex items-center gap-2 py-2 text-sm sm:gap-3"
                   >
-                    <span className="text-zinc-600">{line.ingredientName}</span>
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <StockToggle
-                        inStock={line.inStock}
-                        onPick={(next) =>
-                          setIngredientStockFlag(line, next)
-                        }
-                      />
-                      <span className="tabular-nums text-zinc-500">
-                        {formatQuantity(line.totalQuantity, line.unit)}
-                      </span>
-                    </div>
+                    <span className="min-w-0 flex-1 truncate text-zinc-600">
+                      {line.ingredientName}
+                    </span>
+                    <span className="min-w-[3.25rem] shrink-0 text-right text-xs tabular-nums text-zinc-500 sm:min-w-[4.5rem] sm:text-sm">
+                      {formatQuantity(line.totalQuantity, line.unit)}
+                    </span>
+                    <StockToggle
+                      inStock={line.inStock}
+                      onPick={(next) => setIngredientStockFlag(line, next)}
+                    />
                   </li>
                 ))}
               </ul>
@@ -393,7 +393,7 @@ export default function GroceryListStep() {
         </section>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-zinc-200 bg-white p-7 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-7">
             <h3 className="text-lg font-semibold text-zinc-900">Actions</h3>
             <p className="mt-1 text-xs text-zinc-500">
               Save this list, share it with your team, or download a copy.
@@ -449,39 +449,6 @@ export default function GroceryListStep() {
       ) : null}
     </>
   );
-}
-
-function renderListAsText(list: GroceryList): string {
-  const header = [
-    `Grocery list — ${list.order.eventName || "Order"}`,
-    `For: ${list.order.clientName} · ${list.order.guestCount} servings`,
-    list.order.eventDate ? `Date: ${list.order.eventDate}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-  const items = list.lines
-    .filter((line) => !line.inStock)
-    .map((line) => `• ${line.ingredientName} — ${formatQuantity(line.totalQuantity, line.unit)}`)
-    .join("\n");
-  return `${header}\n\nTo buy:\n${items}`;
-}
-
-function renderListAsCsv(list: GroceryList): string {
-  const escape = (value: string) =>
-    `"${value.replace(/"/g, '""')}"`;
-  const rows = [
-    ["Ingredient", "Category", "Quantity", "Unit", "Status"].map(escape).join(","),
-    ...list.lines.map((line) =>
-      [
-        escape(line.ingredientName),
-        escape(line.category),
-        String(line.totalQuantity),
-        escape(line.unit),
-        escape(line.inStock ? "In stock" : "To buy"),
-      ].join(","),
-    ),
-  ];
-  return rows.join("\n");
 }
 
 function slug(value: string): string {

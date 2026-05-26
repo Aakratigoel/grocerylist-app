@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "./_components/app-shell";
@@ -16,7 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "GroceryList — Smart lists, every time.",
   description:
-    "Build grocery lists from your recipes: scale ingredients by servings, mark what you need, share or download.",
+    "Build grocery lists from your recipes: combine dish ingredients, mark what you need, share or download.",
+};
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
