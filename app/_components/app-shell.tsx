@@ -8,11 +8,18 @@ import { Sidebar } from "./sidebar";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pathname = usePathname();
+  const isLandingPage = pathname === "/";
 
   useEffect(() => {
     setMobileNavOpen(false);
   }, [pathname]);
 
+  // Landing page without sidebar
+  if (isLandingPage) {
+    return <>{children}</>;
+  }
+
+  // Regular app pages with sidebar
   return (
     <div className="flex min-h-screen w-full min-w-0 overflow-x-hidden">
       <button

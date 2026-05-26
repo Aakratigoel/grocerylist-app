@@ -31,3 +31,39 @@ body {
 html {
   overflow-x: hidden;
 }
+
+/* Landing page specific styles */
+.landing-page {
+  min-height: 100vh;
+  position: relative;
+}
+
+.landing-page * {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Background Image */
+.landing-bg {
+  position: absolute;
+  inset: 0;
+  background-image: url('/grocery_list_bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 0;
+}
+
+/* Float animation for share card */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
