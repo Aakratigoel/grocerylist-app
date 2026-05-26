@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { NEW_GROCERY_LIST_START_HREF } from "./orders/new/_wizard";
 import { ArrowRightIcon, PlayIcon } from "./_components/icons";
 
@@ -23,6 +24,7 @@ const features = [
 ];
 
 export default function Home() {
+  const [showVideo, setShowVideo] = useState(false);
   return (
     <div className="landing-page fixed inset-0 overflow-auto bg-black text-white">
       {/* Background Image */}
@@ -122,6 +124,7 @@ export default function Home() {
               </Link>
               <button
                 type="button"
+                onClick={() => setShowVideo(true)}
                 className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900/50 px-6 py-3.5 text-base font-medium text-white transition-all hover:bg-zinc-800"
               >
                 <PlayIcon className="h-5 w-5" />
@@ -169,6 +172,62 @@ export default function Home() {
           Stored locally in your browser
         </div>
       </footer>
+
+      {/* Video Modal */}
+      {showVideo && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setShowVideo(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setShowVideo(false)}
+              className="absolute -top-12 right-0 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+              aria-label="Close video"
+            >
+              <svg
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+
+            {/* Video container */}
+            <div className="aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xl">
+              {/* Option 1: YouTube embed - Replace VIDEO_ID with your YouTube video ID */}
+              {/* <iframe
+                className="h-full w-full"
+                src="https://www.youtube.com/embed/VIDEO_ID?autoplay=1"
+                title="How it works"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              /> */}
+
+              {/* Option 2: Local video file - Place your video in the public folder */}
+              <video
+                className="h-full w-full"
+                controls
+                autoPlay
+                src="/howitworks.mp4"
+              >
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
