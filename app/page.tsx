@@ -52,33 +52,6 @@ export default function Home() {
             <span className="text-xl font-semibold">GroceryList</span>
           </div>
 
-          <nav className="hidden items-center gap-8 md:flex">
-            <a
-              href="#features"
-              className="text-sm text-zinc-400 transition-colors hover:text-white"
-            >
-              Features
-            </a>
-            <a
-              href="#how-it-works"
-              className="text-sm text-zinc-400 transition-colors hover:text-white"
-            >
-              How it works
-            </a>
-            <a
-              href="#share"
-              className="text-sm text-zinc-400 transition-colors hover:text-white"
-            >
-              Share
-            </a>
-            <a
-              href="#about"
-              className="text-sm text-zinc-400 transition-colors hover:text-white"
-            >
-              About
-            </a>
-          </nav>
-
           <Link
             href={NEW_GROCERY_LIST_START_HREF}
             className="rounded-lg border border-green-500/50 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-500 transition-all hover:bg-green-500/20"
