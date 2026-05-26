@@ -513,6 +513,9 @@ function MenuItemDialog({
         );
         return;
       }
+      // Get the servings count and multiply quantities accordingly
+      const servings = Math.max(1, Math.floor(Number(recipeServesCount)) || 1);
+
       const suggested: IngredientRow[] = (payload.ingredients ?? []).map(
         (ing) => {
           const u = String(ing.unit ?? "g").trim() || "g";
@@ -521,9 +524,13 @@ function MenuItemDialog({
           const catalog = key
             ? ingredients.find((i) => i.name.toLowerCase() === key)
             : undefined;
+
+          // Multiply the AI-suggested quantity by the number of servings
+          const adjustedQuantity = ing.quantity * servings;
+
           return {
             name: catalog?.name ?? trimmedName,
-            amount: `${ing.quantity} ${u}`.trim(),
+            amount: `${adjustedQuantity} ${u}`.trim(),
             category: catalog?.category ?? guessIngredientCategory(trimmedName),
             fromCatalog: Boolean(catalog),
           };
